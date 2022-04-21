@@ -17,7 +17,7 @@ pub mod utils {
     use chrono::{NaiveDateTime, NaiveTime};
     use crate::vec_unique;
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize)]
     pub struct Row {
         pub datetime_str: String,
         pub open: f64,
@@ -58,6 +58,16 @@ pub mod utils {
         }
 
         Ok(v)
+    }
+
+    pub fn write_csv(h: &FxHashMap<(u64, NaiveTime, NaiveTime), f64>, column_names: &[&str]) -> Result<(), Box<dyn Error>> {
+        let mut wtr = csv::Writer::from_path("returns_test.csv")?;
+        wtr.write_record(column_names)?;
+        for ((i,st, e), r) in h {
+            wtr.write_record(&[i.to_string(), st.to_string(), e.to_string(), r.to_string()])?;
+        }
+        wtr.flush()?;
+        Ok(())
     }
 
     pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime> {
@@ -206,23 +216,18 @@ pub mod vector_utils {
 use std::error::Error;
 use crate::utils::*;
 use crate::vector_utils::*;
-use chrono::*;
 use std::collections::{HashMap, HashSet};
 
 #[test]
 fn playground_test() {
     let mut v = [1,0,0,0,1,-1,0,0,-1,0,0,1,-1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,-1,0,0,0,0,1];
 
-    let mut locs: Vec<u32> = Vec::new();
-    let value:i32 = 1;
-    let mut counter:u32 = 0;
-    for x in (&v).into_iter() {
-        if x == &value {
-            locs.push(counter);
-        }
-        counter += 1;
-    }
-    println!("1 is at {:?}", locs);
+    let n_threads = 4;
+    let interval_rng: Vec<u64> = (2..60).map(|x| x).collect();
+    let interval_rng_split:Vec<Vec<u64>> = interval_rng.chunks((interval_rng.len()/n_threads + 1)).map(|x| x.to_vec()).collect();
 
+    for i in interval_rng_split {
+        println!("{:?}", i);
+    }
 
 }

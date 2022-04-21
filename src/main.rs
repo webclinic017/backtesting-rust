@@ -1,5 +1,5 @@
-// use std::collections::HashMap;
-// use std::io::prelude::*;
+use std::thread;
+use std::sync::{Arc, Mutex, MutexGuard};
 use rustc_hash::FxHashMap;
 use std::error::Error;
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
@@ -8,45 +8,86 @@ use backtesting::vector_utils::{vec_mean, vec_std, vec_unique, vec_where_eq};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn Error>>  {
-    // let file_name = "ZN_continuous_1min_sample.csv";
     // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
     let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
-    println!("{}", file_name);
+    println!("Using file: {}", file_name);
 
+    // Read CSV
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
         .filter(|x| x.datetime().year() >= 2021)
         .collect();
+    println!("{} rows", v.len());
+
+
+    // Initialize Params
+    let resolution: u64 = 1; // minutes
+    let interval_rng: Vec<u64> = (2..60).map(|x| x*resolution).collect();
+    let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
+
+    let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
+    println!("Running {} times", total_runs);
+
 
     let now = Instant::now();
-    run_analysis(&v);
+    let n_threads = 8;
+    let interval_rng:Vec<Vec<u64>> = interval_rng.chunks(interval_rng.len()/n_threads + 1).map(|x| x.to_vec()).collect();
+
+    let counter = Arc::new(Mutex::new(0_u64));
+    let mut handles = vec![];
+    for i in 0..n_threads {
+        let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
+        let values: Vec<f64> = v.iter().map(|x| x.close).collect();
+        let st_rng: Vec<NaiveTime> = start_time_rng.clone();
+        let i_rng: Vec<u64> = interval_rng[i].clone();
+        let counter = Arc::clone(&counter);
+
+        let handle = thread::spawn(move || {
+            run_analysis(times, values, &i_rng, &st_rng,
+                         counter, total_runs).unwrap()
+        });
+        handles.push(handle);
+    }
+
+    let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), f64> = FxHashMap::default();
+    for handle in handles {
+        let h = handle.join().unwrap();
+        for (k, v) in h {
+            results.insert(k, v);
+        }
+    }
+
     println!("{} seconds to run", now.elapsed().as_secs());
+
+    println!("Writing to csv");
+    match write_csv(&results, &["Interval", "Start Time", "End Time", "Sharpe"]) {
+        Err(e) => println!("Write CSV error {}", e),
+        _ => println!("CSV export complete"),
+
+    }
+
     Ok(())
 
 }
 
 
-fn run_analysis(v: &Vec<Row>) -> Result<(), Box<dyn Error>> {
-    let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
-    let values: Vec<_> = v.iter().map(|x| x.close).collect();
-    // let timeseries: HashMap<_, _> = times.iter().zip(&values).collect();
 
-    let resolution: u64 = 1; // minutes
-    let interval_rng: Vec<u64> = (2..60).map(|x| x*resolution).collect();
-    let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
-
-    let total_runs = interval_rng.len()*start_time_rng.len();
-    println!("Running {} times", total_runs);
+fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
+                interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, progress_counter: Arc<Mutex<u64>>, total_runs: u64)
+                -> Result<FxHashMap<(u64, NaiveTime, NaiveTime), f64>, Box<dyn Error>> {
 
     let mut sharpes: FxHashMap<(u64, NaiveTime, NaiveTime), f64> = FxHashMap::default();
-    let mut progress_counter: usize = 0;
+    // let mut progress_counter: usize = 0;
     let now = Instant::now();
     for interval in interval_rng {
-        for start_time in &start_time_rng {
-            progress_counter += 1;
-            if progress_counter % 100 == 0 {
-                println!("Running iteration {} out of {}, {} seconds elapsed",
-                         progress_counter, total_runs, now.elapsed().as_secs());
+        for start_time in start_time_rng {
+            {
+                let mut p = progress_counter.lock().unwrap();
+                *p += 1;
+                if *p % 100 == 0 {
+                    println!("Running iteration {} out of {}, {} seconds elapsed",
+                             *p, total_runs, now.elapsed().as_secs());
+                }
             }
             let end_time = add_time(start_time, interval*60);
 
@@ -74,30 +115,22 @@ fn run_analysis(v: &Vec<Row>) -> Result<(), Box<dyn Error>> {
                     returns.push(v[v.len()-1] - v[0]);
                 }
             }
+            // println!("{:?}", returns);
             let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
+            // println!("{}", sharpe);
             let ann_factor = (252_f64).sqrt();
-            sharpes.insert((interval, *start_time, end_time), sharpe*ann_factor);
+            sharpes.insert((interval.clone(), start_time.clone(), end_time), sharpe*ann_factor);
 
         }
     }
 
-    // write_csv(sharpes, &["Interval", "Start Time", "Sharpe"]);
 
-    match write_csv(sharpes, &["Interval", "Start Time", "End Time", "Sharpe"]) {
-        Err(e) => println!("Write CSV error {}", e),
-        _ => ()
-    }
+    // match write_csv(&sharpes, &["Interval", "Start Time", "End Time", "Sharpe"]) {
+    //     Err(e) => println!("Write CSV error {}", e),
+    //     _ => ()
+    // }
 
-    Ok(())
+    Ok(sharpes)
+
 }
 
-
-fn write_csv(h: FxHashMap<(u64, NaiveTime, NaiveTime), f64>, column_names: &[&str]) -> Result<(), Box<dyn Error>> {
-    let mut wtr = csv::Writer::from_path("returns_test.csv")?;
-    wtr.write_record(column_names)?;
-    for ((i,st, e), r) in h {
-        wtr.write_record(&[i.to_string(), st.to_string(), e.to_string(), r.to_string()])?;
-    }
-    wtr.flush()?;
-    Ok(())
-}
