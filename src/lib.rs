@@ -3,6 +3,7 @@ extern crate csv;
 #[macro_use]
 extern crate serde_derive;
 
+use uuid::Uuid;
 use crate::vector_utils::*;
 
 pub mod utils {
@@ -15,6 +16,7 @@ pub mod utils {
     use std::time::Duration;
     use csv::{ByteRecord, ReaderBuilder};
     use chrono::{NaiveDateTime, NaiveTime};
+    use std::cmp::Ordering;
     use crate::vec_unique;
 
     #[derive(Deserialize)]
@@ -60,11 +62,12 @@ pub mod utils {
         Ok(v)
     }
 
-    pub fn write_csv(h: &FxHashMap<(u64, NaiveTime, NaiveTime), f64>, column_names: &[&str]) -> Result<(), Box<dyn Error>> {
+    pub fn write_csv(h: &FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)>, column_names: &[&str]) -> Result<(), Box<dyn Error>> {
         let mut wtr = csv::Writer::from_path("returns_test.csv")?;
         wtr.write_record(column_names)?;
-        for ((i,st, e), r) in h {
-            wtr.write_record(&[i.to_string(), st.to_string(), e.to_string(), r.to_string()])?;
+        for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
+            wtr.write_record(&[i.to_string(), st.to_string(), e.to_string(),
+                drawups.to_string(), drawdowns.to_string(), sharpe.to_string(), n_obs.to_string()])?;
         }
         wtr.flush()?;
         Ok(())
@@ -124,6 +127,15 @@ pub mod utils {
             }
         }
         v
+    }
+
+    pub fn comp_f64(a: &f64, b: &f64) -> Ordering {
+        if a < b {
+            return Ordering::Less;
+        } else if a > b {
+            return Ordering::Greater;
+        }
+        Ordering::Equal
     }
 }
 
@@ -211,18 +223,29 @@ pub mod vector_utils {
             _ => None,
         }
     }
+
+    pub fn vec_diff(v: &Vec<f64>, diff: usize) -> Option<Vec<f64>> {
+        let count = v.len();
+        if count == 1 { return None }
+        let d:Vec<f64> = (0..(v.len()-diff)).map(|i| &v[i+diff] - &v[i]).collect();
+        Some(d)
+    }
+
+    pub fn vec_cumsum(v: &Vec<f64>) -> Option<Vec<f64>> {
+        let count = v.len();
+        if count == 1 { return None }
+        let mut u = v.clone();
+        u.iter_mut().fold(0.0, |acc, x| {
+            *x += acc;
+            *x
+        });
+        Some(u)
+    }
 }
 
 #[test]
 fn playground_test() {
-    let mut v = [1,0,0,0,1,-1,0,0,-1,0,0,1,-1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,-1,0,0,0,0,1];
+    let v = [1,0,0,0,1,-1,0,0,-1,0,0,1,-1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,-1,0,0,0,0,1];
 
-    let n_threads = 4;
-    let interval_rng: Vec<u64> = (2..60).map(|x| x).collect();
-    let interval_rng_split:Vec<Vec<u64>> = interval_rng.chunks((interval_rng.len()/n_threads + 1)).map(|x| x.to_vec()).collect();
-
-    for i in interval_rng_split {
-        println!("{:?}", i);
-    }
-
+    println!("{}", v.iter().max().unwrap());
 }

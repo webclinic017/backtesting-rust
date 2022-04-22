@@ -4,20 +4,13 @@ use rustc_hash::FxHashMap;
 use std::error::Error;
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
 use backtesting::utils::*;
-use backtesting::vector_utils::{vec_mean, vec_std, vec_unique, vec_where_eq};
+use backtesting::vector_utils::{vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn Error>>  {
     // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
     let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
     println!("Using file: {}", file_name);
-
-    // Read CSV
-    let v: Vec<Row> = read_csv(file_name).unwrap()
-        .into_iter()
-        .filter(|x| x.datetime().year() >= 2021)
-        .collect();
-    println!("{} rows", v.len());
 
 
     // Initialize Params
@@ -28,13 +21,28 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
 
+    // Read CSV
+    let v: Vec<Row> = read_csv(file_name).unwrap()
+        .into_iter()
+        .filter(|x| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
+            (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
+        .collect();
+    println!("{} rows", v.len());
+
     let now = Instant::now();
     let n_threads = 8;
-    let interval_rng:Vec<Vec<u64>> = interval_rng.chunks(interval_rng.len()/n_threads + 1).map(|x| x.to_vec()).collect();
+    let n_chunks = if interval_rng.len() % n_threads > 0 {
+        interval_rng.len() / n_threads + 1
+    }
+                                                          else {
+        interval_rng.len() / n_threads
+    };
+    let interval_rng:Vec<Vec<u64>> = interval_rng.chunks(n_chunks).map(|x| x.to_vec()).collect();
 
     let counter = Arc::new(Mutex::new(0_u64));
     let mut handles = vec![];
-    for i in 0..n_threads {
+    for i in 0..interval_rng.len() {
         let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
         let st_rng: Vec<NaiveTime> = start_time_rng.clone();
@@ -43,12 +51,12 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
         let handle = thread::spawn(move || {
             run_analysis(times, values, &i_rng, &st_rng,
-                         counter, total_runs).unwrap()
+                         counter, total_runs, i).unwrap()
         });
         handles.push(handle);
     }
 
-    let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), f64> = FxHashMap::default();
+    let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
     for handle in handles {
         let h = handle.join().unwrap();
         for (k, v) in h {
@@ -59,10 +67,9 @@ fn main() -> Result<(), Box<dyn Error>>  {
     println!("{} seconds to run", now.elapsed().as_secs());
 
     println!("Writing to csv");
-    match write_csv(&results, &["Interval", "Start Time", "End Time", "Sharpe"]) {
+    match write_csv(&results, &["Interval", "Start Time", "End Time", "Sharpe", "Max Drawup", "Max Drawdown", "N_Obs"]) {
         Err(e) => println!("Write CSV error {}", e),
         _ => println!("CSV export complete"),
-
     }
 
     Ok(())
@@ -71,11 +78,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
 
 fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
-                interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, progress_counter: Arc<Mutex<u64>>, total_runs: u64)
-                -> Result<FxHashMap<(u64, NaiveTime, NaiveTime), f64>, Box<dyn Error>> {
+                interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
+                progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
+                -> Result<FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)>, Box<dyn Error>> {
 
-    let mut sharpes: FxHashMap<(u64, NaiveTime, NaiveTime), f64> = FxHashMap::default();
-    // let mut progress_counter: usize = 0;
+    let mut ret: FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
     let now = Instant::now();
     for interval in interval_rng {
         for start_time in start_time_rng {
@@ -83,8 +90,8 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
                 let mut p = progress_counter.lock().unwrap();
                 *p += 1;
                 if *p % 100 == 0 {
-                    println!("Running iteration {} out of {}, {} seconds elapsed",
-                             *p, total_runs, now.elapsed().as_secs());
+                    println!("Running iteration {} out of {} on thread {}, {} seconds elapsed",
+                             *p, total_runs, i_thread, now.elapsed().as_secs());
                 }
             }
             let end_time = add_time(start_time, interval*60);
@@ -100,35 +107,39 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             let r: Vec<usize> = fill_ids(&r);
 
             let mut returns: Vec<f64> = Vec::new();
+            let mut drawups: Vec<f64> = Vec::new();
+            let mut drawdowns: Vec<f64> = Vec::new();
+            let mut n_obs= 0_usize;
             for i in vec_unique(&r).into_iter() {
                 if i == &0 {continue;} // 0 means no observation
                 let ix = vec_where_eq(&r, i);
                 let _t = &times[ix[0]..=ix[ix.len()-1]];
                 let v:Vec<f64> = values[ix[0]..=ix[ix.len()-1]].to_vec();
 
-                if v.len() > 1 {
-                    // let ret = v[v.len() - 1] - v[0];
-                    // returns.insert((interval, start_time), ret);
-                    // sharpes.insert((interval, start_time), sharpe);
+                if v.len() > 2 {
+                    n_obs += 1;
+                    // let d:Vec<f64> = (0..(v.len()-1)).map(|i| &v[i+1] - &v[i]).collect();
+                    let mut d = vec_diff(&v, 1).unwrap();
+                    let mut d = vec_cumsum(&d).unwrap();
+                    d.sort_by(|a, b| comp_f64(a,b));
                     returns.push(v[v.len()-1] - v[0]);
+                    drawups.push(d[0]);
+                    drawdowns.push(d[d.len() - 1]);
                 }
             }
             // println!("{:?}", returns);
             let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
             // println!("{}", sharpe);
             let ann_factor = (252_f64).sqrt();
-            sharpes.insert((interval.clone(), start_time.clone(), end_time), sharpe*ann_factor);
+
+            drawups.sort_by(|a, b| comp_f64(a,b));
+            drawdowns.sort_by(|a, b| comp_f64(a,b));
+
+            ret.insert((interval.clone(), start_time.clone(), end_time),
+                       (sharpe*ann_factor, drawups[0], drawdowns[drawdowns.len() - 1], n_obs));
 
         }
     }
-
-
-    // match write_csv(&sharpes, &["Interval", "Start Time", "End Time", "Sharpe"]) {
-    //     Err(e) => println!("Write CSV error {}", e),
-    //     _ => ()
-    // }
-
-    Ok(sharpes)
-
+    Ok(ret)
 }
 
