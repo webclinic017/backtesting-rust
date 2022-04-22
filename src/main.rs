@@ -1,5 +1,5 @@
 use std::thread;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use rustc_hash::FxHashMap;
 use std::error::Error;
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
@@ -27,7 +27,6 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
-
 
     let now = Instant::now();
     let n_threads = 8;
@@ -69,7 +68,6 @@ fn main() -> Result<(), Box<dyn Error>>  {
     Ok(())
 
 }
-
 
 
 fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,

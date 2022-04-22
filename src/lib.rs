@@ -119,7 +119,8 @@ pub mod utils {
         let mut v = vec![0; r.len()];
         for (i, (e, st)) in pairs.into_iter().enumerate() {
             for j in st..=e {
-                std::mem::replace(&mut v[j], i+2);
+                // std::mem::replace(&mut v[j], i+2);
+                v[j] = i+2;
             }
         }
         v
@@ -127,10 +128,10 @@ pub mod utils {
 }
 
 pub mod vector_utils {
-    use std::cmp::{PartialEq, PartialOrd, Ord, Eq};
+    use std::cmp::{PartialEq, PartialOrd, Eq};
     // use std::collections::{HashMap, HashSet};
     use std::hash::Hash;
-    use rustc_hash::{FxHashMap, FxHashSet};
+    use rustc_hash::FxHashSet;
 
     pub fn vec_unique<T: Eq+Hash>(r: &Vec<T>) -> FxHashSet<&T> {
         // let mut unique = (*r).clone();
@@ -211,12 +212,6 @@ pub mod vector_utils {
         }
     }
 }
-
-
-use std::error::Error;
-use crate::utils::*;
-use crate::vector_utils::*;
-use std::collections::{HashMap, HashSet};
 
 #[test]
 fn playground_test() {
