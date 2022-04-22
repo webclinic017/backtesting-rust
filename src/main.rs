@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 use std::error::Error;
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
 use backtesting::utils::*;
-use backtesting::vector_utils::{vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
+use backtesting::vector_utils::*;
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn Error>>  {
