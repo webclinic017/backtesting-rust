@@ -2,8 +2,9 @@ use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
 use chrono::{NaiveDateTime, NaiveTime};
-use backtesting::strategy::Strategy;
+use backtesting::strategy::StrategyResult;
 use backtesting::utils::*;
+use backtesting::events::*;
 use std::time::Instant;
 
 
@@ -21,15 +22,19 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
 
-    // Read CSV
+    // Read timeseries CSV
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
-        .filter(|x| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         // .filter(|x| x.datetime() >= NaiveDateTime::parse_from_str("2020-04-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
             (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
         .collect();
     println!("{} rows", v.len());
+
+    // Read get events data
+    // let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list.csv";
+    // let events: Vec<Event> = get_event_calendar(events_loc, &[3]);
 
     let now = Instant::now();
     let n_threads = 8;
@@ -44,14 +49,14 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let counter = Arc::new(Mutex::new(0_u64));
     let mut handles = vec![];
     for i in 0..interval_rng.len() {
-        let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
+        let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
         let st_rng: Vec<NaiveTime> = start_time_rng.clone();
         let i_rng: Vec<u64> = interval_rng[i].clone();
         let counter = Arc::clone(&counter);
 
         let handle = thread::spawn(move || {
-            run_analysis(times, values, &i_rng, &st_rng,
+            run_analysis(datetimes, values, &i_rng, &st_rng,
                          counter, total_runs, i).unwrap()
         });
         handles.push(handle);
@@ -77,13 +82,12 @@ fn main() -> Result<(), Box<dyn Error>>  {
 }
 
 
-fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
+fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
                 progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
-                -> Result<Vec<Strategy>, Box<dyn Error>> {
+                -> Result<Vec<StrategyResult>, Box<dyn Error>> {
 
-    // let mut ret: FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
-    let mut ret: Vec<Strategy> = Vec::new();
+    let mut ret: Vec<StrategyResult> = Vec::new();
     let now = Instant::now();
     for interval in interval_rng {
         for start_time in start_time_rng {
@@ -99,10 +103,10 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
 
             let r:Vec<i32> = vec![0; values.len()];
 
-            let entry_cond: Vec<i32> = times.iter().map(|x| if x.time()==*start_time {1} else {0}).collect();
+            let entry_cond: Vec<i32> = datetimes.iter().map(|x| if x.time()==*start_time {1} else {0}).collect();
             let r: Vec<i32> = r.iter().zip(entry_cond.iter()).map(|(&x, &y)| x+y).collect();
 
-            let exit_cond: Vec<i32> = times.iter().map(|x| if x.time()==end_time {-1} else {0}).collect();
+            let exit_cond: Vec<i32> = datetimes.iter().map(|x| if x.time()==end_time {-1} else {0}).collect();
             let r: Vec<i32> = r.iter().zip(exit_cond.iter()).map(|(&x, &y)| x+y).collect();
 
             let r: Vec<usize> = fill_ids(&r);
@@ -114,7 +118,7 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             for i in vec_unique(&r).into_iter() {
                 if i == &0 {continue;} // 0 means no observation
                 let ix = vec_where_eq(&r, i);
-                let _t = &times[ix[0]..=ix[ix.len()-1]];
+                let _t = &datetimes[ix[0]..=ix[ix.len()-1]];
                 let v:Vec<f64> = values[ix[0]..=ix[ix.len()-1]].to_vec();
 
                 if v.len() > 2 {
@@ -135,7 +139,7 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
-            ret.push(Strategy {
+            ret.push(StrategyResult {
                 interval: *interval,
                 start_time: *start_time,
                 end_time: end_time,

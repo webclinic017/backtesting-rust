@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use std::error::Error;
 use std::time::Duration;
 use csv::{ByteRecord, ReaderBuilder};
+use serde::de;
 use serde_derive::Deserialize;
 
 use chrono::{NaiveDateTime, NaiveTime};
@@ -18,7 +19,6 @@ pub struct Row {
     pub low: f64,
     pub close: f64,
     pub volume: f64,
-    // pub datetime: NaiveDateTime,
 }
 impl Row {
     pub fn datetime(&self) -> NaiveDateTime {
@@ -28,7 +28,7 @@ impl Row {
     }
 }
 
-pub fn read_csv(file_name: &str) -> Result<Vec<Row>, Box<dyn Error>> {
+pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<dyn Error>> {
     let mut file = File::open(file_name)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -38,23 +38,20 @@ pub fn read_csv(file_name: &str) -> Result<Vec<Row>, Box<dyn Error>> {
 
     let records = rdr
         .byte_records()
-        // .records()
         .collect::<Result<Vec<ByteRecord>, csv::Error>>()?;
 
-    let mut v:Vec<Row> = Vec::new();
+    let mut v:Vec<T> = Vec::new();
 
-    // for (i, r) in records.iter().enumerate() {
     for r in records.iter() {
-        let row:Row = r.deserialize(None)?;
+        let row:T = r.deserialize(None)?;
         v.push(row);
-        // if i > 100 {break;}
     }
 
     Ok(v)
 }
 
-use crate::strategy::{Strategy, FIELD_NAMES};
-pub fn write_csv(v: &Vec<Strategy>) -> Result<(), Box<dyn Error>> {
+use crate::strategy::{StrategyResult, FIELD_NAMES};
+pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
     let mut wtr = csv::Writer::from_path("returns_test.csv")?;
     wtr.write_record(&FIELD_NAMES)?;
     // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
