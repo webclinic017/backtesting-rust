@@ -4,7 +4,6 @@ use std::error::Error;
 use chrono::{NaiveDateTime, NaiveTime};
 use backtesting::strategy::Strategy;
 use backtesting::utils::*;
-use backtesting::vector_utils::*;
 use std::time::Instant;
 
 
@@ -26,6 +25,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
         .filter(|x| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        // .filter(|x| x.datetime() >= NaiveDateTime::parse_from_str("2020-04-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
             (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
         .collect();
@@ -34,11 +34,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let now = Instant::now();
     let n_threads = 8;
     let n_chunks = if interval_rng.len() % n_threads > 0 {
-        interval_rng.len() / n_threads + 1
-    }
-                                                          else {
-        interval_rng.len() / n_threads
-    };
+            interval_rng.len() / n_threads + 1
+        }
+        else {
+            interval_rng.len() / n_threads
+        };
     let interval_rng:Vec<Vec<u64>> = interval_rng.chunks(n_chunks).map(|x| x.to_vec()).collect();
 
     let counter = Arc::new(Mutex::new(0_u64));
@@ -58,6 +58,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
     }
 
     let results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
+
+    // Single threaded for profiling
+    // let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
+    // let values: Vec<f64> = v.iter().map(|x| x.close).collect();
+    // let results = run_analysis(times, values, &interval_rng, &start_time_rng, Arc::new(Mutex::new(0)), total_runs, 1_usize).unwrap();
 
     println!("{} seconds to run", now.elapsed().as_secs());
 
@@ -131,13 +136,13 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
             ret.push(Strategy {
-                interval: Some(*interval),
-                start_time: Some(*start_time),
-                end_time: Some(end_time),
-                sharpe: Some(sharpe*ann_factor),
-                max_drawup: Some(drawups[0]),
-                max_drawdown: Some(drawdowns[drawdowns.len() - 1]),
-                n_obs: Some(n_obs),
+                interval: *interval,
+                start_time: *start_time,
+                end_time: end_time,
+                sharpe: sharpe*ann_factor,
+                max_drawup: drawups[0],
+                max_drawdown: drawdowns[drawdowns.len() - 1],
+                n_obs: n_obs,
             });
         }
     }
