@@ -3,13 +3,16 @@ use std::sync::{Arc, Mutex};
 use rustc_hash::FxHashMap;
 use std::error::Error;
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
+use backtesting::strategy::Strategy;
 use backtesting::utils::*;
 use backtesting::vector_utils::*;
 use std::time::Instant;
+use serde::de::Unexpected::Str;
+
 
 fn main() -> Result<(), Box<dyn Error>>  {
-    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
-    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
+    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
+    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
     println!("Using file: {}", file_name);
 
 
@@ -56,18 +59,20 @@ fn main() -> Result<(), Box<dyn Error>>  {
         handles.push(handle);
     }
 
-    let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
-    for handle in handles {
-        let h = handle.join().unwrap();
-        for (k, v) in h {
-            results.insert(k, v);
-        }
-    }
+    // let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
+    let mut results: Vec<Strategy> = Vec::new();
+    // for handle in handles {
+    //     let h = handle.join().unwrap();
+    //     for (k, v) in h {
+    //         results.insert(k, v);
+    //     }
+    // }
+    results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
 
     println!("{} seconds to run", now.elapsed().as_secs());
 
     println!("Writing to csv");
-    match write_csv(&results, &["Interval", "Start Time", "End Time", "Sharpe", "Max Drawup", "Max Drawdown", "N_Obs"]) {
+    match write_csv(&results) {
         Err(e) => println!("Write CSV error {}", e),
         _ => println!("CSV export complete"),
     }
@@ -80,9 +85,10 @@ fn main() -> Result<(), Box<dyn Error>>  {
 fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
                 interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
                 progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
-                -> Result<FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)>, Box<dyn Error>> {
+                -> Result<Vec<Strategy>, Box<dyn Error>> {
 
-    let mut ret: FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
+    // let mut ret: FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
+    let mut ret: Vec<Strategy> = Vec::new();
     let now = Instant::now();
     for interval in interval_rng {
         for start_time in start_time_rng {
@@ -135,9 +141,18 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
-            ret.insert((interval.clone(), start_time.clone(), end_time),
-                       (sharpe*ann_factor, drawups[0], drawdowns[drawdowns.len() - 1], n_obs));
+            // ret.insert((interval.clone(), start_time.clone(), end_time),
+            //            (sharpe*ann_factor, drawups[0], drawdowns[drawdowns.len() - 1], n_obs));
 
+            ret.push(Strategy {
+                interval: *interval,
+                start_time: *start_time,
+                end_time: end_time,
+                sharpe: sharpe*ann_factor,
+                max_drawup: drawups[0],
+                max_drawdown: drawdowns[drawdowns.len() - 1],
+                n_obs: n_obs,
+            });
         }
     }
     Ok(ret)

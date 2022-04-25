@@ -3,8 +3,48 @@ extern crate csv;
 #[macro_use]
 extern crate serde_derive;
 
-use uuid::Uuid;
 use crate::vector_utils::*;
+
+pub mod strategy {
+    use chrono::NaiveTime;
+
+    pub const N_FIELDS: usize = 7;
+    pub static FIELD_NAMES: [&str; N_FIELDS] = ["interval", "start time", "end time", "sharpe", "max drawup", "max drawdown", "n obs"];
+
+    pub struct Strategy {
+        pub interval: u64,
+        pub start_time: NaiveTime,
+        pub end_time: NaiveTime,
+        pub sharpe: f64,
+        pub max_drawup: f64,
+        pub max_drawdown: f64,
+        pub n_obs: usize,
+    }
+
+    impl Strategy {
+        pub fn fields_to_strings(&self) -> [String; N_FIELDS] {
+            [self.interval.to_string(), self.start_time.to_string(), self.end_time.to_string(),
+            self.sharpe.to_string(), self.max_drawup.to_string(), self.max_drawdown.to_string(),
+            self.n_obs.to_string()]
+
+        }
+    }
+
+    impl Default for Strategy {
+        fn default() -> Self {
+            Self {
+                interval: 0,
+                start_time: NaiveTime::from_hms(1,0,0),
+                end_time: NaiveTime::from_hms(1,0,0),
+                sharpe: 0.0,
+                max_drawup: 0.0,
+                max_drawdown: 0.0,
+                n_obs: 0,
+            }
+        }
+    }
+
+}
 
 pub mod utils {
     use crate::vector_utils::vec_where_eq;
@@ -62,12 +102,13 @@ pub mod utils {
         Ok(v)
     }
 
-    pub fn write_csv(h: &FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)>, column_names: &[&str]) -> Result<(), Box<dyn Error>> {
+    use crate::strategy::{Strategy, FIELD_NAMES};
+    pub fn write_csv(v: &Vec<Strategy>) -> Result<(), Box<dyn Error>> {
         let mut wtr = csv::Writer::from_path("returns_test.csv")?;
-        wtr.write_record(column_names)?;
-        for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
-            wtr.write_record(&[i.to_string(), st.to_string(), e.to_string(),
-                drawups.to_string(), drawdowns.to_string(), sharpe.to_string(), n_obs.to_string()])?;
+        wtr.write_record(&FIELD_NAMES)?;
+        // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
+        for strat in v {
+            wtr.write_record(strat.fields_to_strings())?;
         }
         wtr.flush()?;
         Ok(())
@@ -243,9 +284,20 @@ pub mod vector_utils {
     }
 }
 
+use strategy::Strategy;
+
 #[test]
 fn playground_test() {
-    let v = [1,0,0,0,1,-1,0,0,-1,0,0,1,-1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,-1,0,0,0,0,1];
+    // let v = [1,0,0,0,1,-1,0,0,-1,0,0,1,-1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,-1,0,0,0,0,1];
 
-    println!("{}", v.iter().max().unwrap());
+    let v = ["interval", "start_time", "end time", "sharpe", "max_drawup", "max_drawdown", "n_obs"];
+
+    let s = Strategy::default();
+
+    let serialized = serde_json::to_vec(&s).unwrap();
+
+    for i in serialized {
+        println!("{}", i);
+    }
+
 }
