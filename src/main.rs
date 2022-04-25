@@ -1,18 +1,16 @@
 use std::thread;
 use std::sync::{Arc, Mutex};
-use rustc_hash::FxHashMap;
 use std::error::Error;
-use chrono::{Datelike, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDateTime, NaiveTime};
 use backtesting::strategy::Strategy;
 use backtesting::utils::*;
 use backtesting::vector_utils::*;
 use std::time::Instant;
-use serde::de::Unexpected::Str;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
-    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
-    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
+    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
+    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
     println!("Using file: {}", file_name);
 
 
@@ -59,15 +57,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
         handles.push(handle);
     }
 
-    // let mut results:FxHashMap<(u64, NaiveTime, NaiveTime), (f64, f64, f64, usize)> = FxHashMap::default();
-    let mut results: Vec<Strategy> = Vec::new();
-    // for handle in handles {
-    //     let h = handle.join().unwrap();
-    //     for (k, v) in h {
-    //         results.insert(k, v);
-    //     }
-    // }
-    results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
+    let results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
 
     println!("{} seconds to run", now.elapsed().as_secs());
 
@@ -126,7 +116,7 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
                     n_obs += 1;
                     // let d:Vec<f64> = (0..(v.len()-1)).map(|i| &v[i+1] - &v[i]).collect();
                     let mut d = vec_diff(&v, 1).unwrap();
-                    let mut d = vec_cumsum(&d).unwrap();
+                    d = vec_cumsum(&d).unwrap();
                     d.sort_by(|a, b| comp_f64(a,b));
                     returns.push(v[v.len()-1] - v[0]);
                     drawups.push(d[0]);
@@ -135,23 +125,19 @@ fn run_analysis(times: Vec<NaiveDateTime>, values: Vec<f64>,
             }
             // println!("{:?}", returns);
             let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
-            // println!("{}", sharpe);
             let ann_factor = (252_f64).sqrt();
 
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
-            // ret.insert((interval.clone(), start_time.clone(), end_time),
-            //            (sharpe*ann_factor, drawups[0], drawdowns[drawdowns.len() - 1], n_obs));
-
             ret.push(Strategy {
-                interval: *interval,
-                start_time: *start_time,
-                end_time: end_time,
-                sharpe: sharpe*ann_factor,
-                max_drawup: drawups[0],
-                max_drawdown: drawdowns[drawdowns.len() - 1],
-                n_obs: n_obs,
+                interval: Some(*interval),
+                start_time: Some(*start_time),
+                end_time: Some(end_time),
+                sharpe: Some(sharpe*ann_factor),
+                max_drawup: Some(drawups[0]),
+                max_drawdown: Some(drawdowns[drawdowns.len() - 1]),
+                n_obs: Some(n_obs),
             });
         }
     }
