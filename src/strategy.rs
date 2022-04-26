@@ -1,4 +1,4 @@
-use chrono::NaiveTime;
+use chrono::{NaiveDateTime, NaiveTime, NaiveDate, Duration};
 
 pub const N_FIELDS: usize = 7;
 pub static FIELD_NAMES: [&str; N_FIELDS] = ["interval", "start time", "end time", "sharpe", "max drawup", "max drawdown", "n obs"];
@@ -33,3 +33,22 @@ impl Default for StrategyResult {
         }
     }
 }
+
+pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool> {
+    datetimes.iter()
+        .map(|x| event_dates.contains(&x.date()))
+        .collect()
+}
+
+pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
+                         early_offset_days: i64, late_offset_days: i64) -> Vec<bool> {
+    assert!(early_offset_days<=late_offset_days);
+    let mut event_date_ranges = event_dates.clone();
+    for &dt in event_dates {
+        for i in early_offset_days..=late_offset_days {
+            event_date_ranges.push(dt + Duration::days(i));
+        }
+    }
+    datetimes.iter().map(|x| event_date_ranges.contains(&x.date())).collect()
+}
+
