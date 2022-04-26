@@ -27,7 +27,8 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // Read timeseries CSV
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
             (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
         .collect();
@@ -86,7 +87,8 @@ fn main() -> Result<(), Box<dyn Error>>  {
         results = strategy::run_analysis(times, values, &interval_rng, &start_time_rng, &events,
                                          Arc::new(Mutex::new(0)), total_runs, 1_usize).unwrap();
     }
-    println!("{} seconds to run", now.elapsed().as_secs());
+    println!("{} seconds to run,", now.elapsed().as_secs());
+    println!("for a total of {} rows", results.len());
 
     println!("Writing to csv");
 

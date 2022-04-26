@@ -92,7 +92,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             let mut gen_cond: Vec<Vec<bool>> = Vec::new();
             gen_cond.push(day_of_strat(&datetimes, event_dates.get("CPI").unwrap()));
             gen_cond.push(days_offset_strat(&datetimes, event_dates.get("FOMC").unwrap(),
-                                            -7, 0, true));
+                                            1, 17, true));
 
             // Set entry conditions
             let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
