@@ -3,6 +3,7 @@ use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
 use std::time::Instant;
+use bdays::HolidayCalendar;
 use simple_error::SimpleError;
 use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
 
@@ -17,7 +18,6 @@ pub struct StrategyResult {
     pub max_drawdown: f64,
     pub n_obs: usize,
 }
-
 impl StrategyResult {
     pub fn fields_to_strings(&self) -> [String; N_FIELDS] {
         [self.interval.to_string(), self.start_time.to_string(), self.end_time.to_string(),
@@ -25,7 +25,6 @@ impl StrategyResult {
             self.n_obs.to_string()]
     }
 }
-
 impl Default for StrategyResult {
     fn default() -> Self {
         Self {
@@ -46,13 +45,19 @@ pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>
         .collect()
 }
 
+static BUS_DAY_CAL:bdays::calendars::us::USSettlement = bdays::calendars::us::USSettlement;
 pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
-                         early_offset_days: i64, late_offset_days: i64) -> Vec<bool> {
+                         early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool> {
     assert!(early_offset_days<=late_offset_days);
     let mut event_date_ranges = event_dates.clone();
     for &dt in event_dates {
         for i in early_offset_days..=late_offset_days {
-            event_date_ranges.push(dt + Duration::days(i));
+            if is_bus_days {
+                event_date_ranges.push(BUS_DAY_CAL.advance_bdays(dt, i as i32))
+            }
+            else {
+                event_date_ranges.push(dt + Duration::days(i));
+            }
         }
     }
     datetimes.iter().map(|x| event_date_ranges.contains(&x.date())).collect()
@@ -87,7 +92,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             let mut gen_cond: Vec<Vec<bool>> = Vec::new();
             gen_cond.push(day_of_strat(&datetimes, event_dates.get("CPI").unwrap()));
             gen_cond.push(days_offset_strat(&datetimes, event_dates.get("FOMC").unwrap(),
-                                            -5, -1));
+                                            -7, 0, true));
 
             // Set entry conditions
             let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat

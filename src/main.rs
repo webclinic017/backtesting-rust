@@ -1,3 +1,4 @@
+use std::env;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
@@ -36,18 +37,20 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc, &[3]);
     let cpi = event_data.get("Consumer Price Index ex Food & Energy (YoY)").unwrap();
-    let fomc = event_data.get("FOMC Press Conference").unwrap();
+    let fomc = event_data.get("Fed's Monetary Policy Statement").unwrap();
     let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
     events.insert("CPI", cpi.to_owned());
     events.insert("FOMC", fomc.to_owned());
 
     println!("Starting at UTC {}", chrono::Local::now());
-
-    static IS_SINGLETHREAD: bool = false;
+    let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED") {
+        Ok(x) => {if x=="TRUE" { true } else { false }},
+        Err(e) => { println!("{}", e); false },
+    };
 
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
-    if !IS_SINGLETHREAD {
+    if !is_singlethreaded {
         let n_threads = 8;
         let n_chunks = if interval_rng.len() % n_threads > 0 {
             interval_rng.len() / n_threads + 1
@@ -75,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
         results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
     }
-    if IS_SINGLETHREAD {
+    if is_singlethreaded {
         // Single-threaded for profiling
         let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
