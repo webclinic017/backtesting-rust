@@ -1,11 +1,12 @@
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use backtesting::strategy::StrategyResult;
 use backtesting::utils::*;
 use backtesting::events::*;
 use std::time::Instant;
+use rustc_hash::FxHashMap;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
@@ -33,8 +34,10 @@ fn main() -> Result<(), Box<dyn Error>>  {
     println!("{} rows", v.len());
 
     // Read get events data
-    // let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list.csv";
-    // let events: Vec<Event> = get_event_calendar(events_loc, &[3]);
+    let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list.csv";
+    let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc, &[3]);
+    let cpi = event_data.get("Consumer Price Index ex Food & Energy (YoY)").unwrap();
+
 
     let now = Instant::now();
     let n_threads = 8;
@@ -51,12 +54,14 @@ fn main() -> Result<(), Box<dyn Error>>  {
     for i in 0..interval_rng.len() {
         let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
+        // let event: Vec<NaiveDateTime> = cpi.clone();
         let st_rng: Vec<NaiveTime> = start_time_rng.clone();
         let i_rng: Vec<u64> = interval_rng[i].clone();
+        let cpi_data= cpi.clone();
         let counter = Arc::clone(&counter);
 
         let handle = thread::spawn(move || {
-            run_analysis(datetimes, values, &i_rng, &st_rng,
+            run_analysis(datetimes, values, &i_rng, &st_rng, &cpi_data,
                          counter, total_runs, i).unwrap()
         });
         handles.push(handle);
@@ -83,9 +88,11 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
 
 fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
-                interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
+                interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, event: &Vec<NaiveDateTime>,
                 progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
                 -> Result<Vec<StrategyResult>, Box<dyn Error>> {
+
+    let event_dates: Vec<NaiveDate> = event.iter().map(|x| x.date()).collect();
 
     let mut ret: Vec<StrategyResult> = Vec::new();
     let now = Instant::now();
@@ -101,13 +108,21 @@ fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             }
             let end_time = add_time(start_time, interval*60);
 
-            let r:Vec<i32> = vec![0; values.len()];
+            let mut r:Vec<i32> = vec![0; values.len()];
 
-            let entry_cond: Vec<i32> = datetimes.iter().map(|x| if x.time()==*start_time {1} else {0}).collect();
-            let r: Vec<i32> = r.iter().zip(entry_cond.iter()).map(|(&x, &y)| x+y).collect();
+            let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
+            let entry_cond2: Vec<bool> = datetimes.iter().map(|x| event_dates.contains(&x.date())).collect();
 
-            let exit_cond: Vec<i32> = datetimes.iter().map(|x| if x.time()==end_time {-1} else {0}).collect();
-            let r: Vec<i32> = r.iter().zip(exit_cond.iter()).map(|(&x, &y)| x+y).collect();
+            let entry_cond: Vec<i32> = entry_cond1.iter().zip(&entry_cond2).map(|(x,y)| (x&y) as i32).collect();
+
+            r = r.iter().zip(entry_cond.iter()).map(|(&x, &y)| x+y).collect();
+
+            let exit_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==end_time).collect();
+            let exit_cond2: Vec<bool> = datetimes.iter().map(|x| event_dates.contains(&x.date())).collect();
+
+            let exit_cond: Vec<i32> = exit_cond1.iter().zip(&exit_cond2).map(|(x,y)| (x&y) as i32).collect();
+
+            r = r.iter().zip(exit_cond.iter()).map(|(&x, &y)| x - (y as i32)).collect();
 
             let r: Vec<usize> = fill_ids(&r);
 
