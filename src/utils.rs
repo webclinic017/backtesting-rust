@@ -10,6 +10,7 @@ use serde_derive::Deserialize;
 
 use chrono::{NaiveDateTime, NaiveTime};
 use std::cmp::Ordering;
+use simple_error::SimpleError;
 
 
 #[derive(Deserialize)]
@@ -53,14 +54,19 @@ pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<
 
 use crate::strategy::{StrategyResult, FIELD_NAMES};
 pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
-    let mut wtr = csv::Writer::from_path("returns_test.csv")?;
-    wtr.write_record(&FIELD_NAMES)?;
-    // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
-    for strat in v {
-        wtr.write_record(strat.fields_to_strings())?;
+    match v.len() {
+        0 => Err(Box::new(SimpleError::new("CSV output has length zero"))),
+        _ => {
+            let mut wtr = csv::Writer::from_path("returns_test.csv")?;
+            wtr.write_record(&FIELD_NAMES)?;
+            // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
+            for strat in v {
+                wtr.write_record(strat.fields_to_strings())?;
+            }
+            wtr.flush()?;
+            Ok(())
+        },
     }
-    wtr.flush()?;
-    Ok(())
 }
 
 pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime> {

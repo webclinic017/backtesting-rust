@@ -7,6 +7,7 @@ use backtesting::utils::*;
 use backtesting::events::*;
 use std::time::Instant;
 use rustc_hash::FxHashMap;
+use simple_error::SimpleError;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
@@ -42,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
     println!("Starting at UTC {}", chrono::Local::now());
 
-    static IS_SINGLETHREAD: bool = true;
+    static IS_SINGLETHREAD: bool = false;
 
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
@@ -67,7 +68,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
             let handle = thread::spawn(move || {
                 run_analysis(datetimes, values, &interval_rng_i_, &start_time_rng_, &events_,
-                             counter, total_runs, i)
+                             counter, total_runs, i).unwrap_or(vec![])
             });
             handles.push(handle);
         }
@@ -80,14 +81,14 @@ fn main() -> Result<(), Box<dyn Error>>  {
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
 
         results = run_analysis(times, values, &interval_rng, &start_time_rng, &events,
-                               Arc::new(Mutex::new(0)), total_runs, 1_usize);
+                               Arc::new(Mutex::new(0)), total_runs, 1_usize).unwrap();
     }
     println!("{} seconds to run", now.elapsed().as_secs());
 
     println!("Writing to csv");
 
     match write_csv(&results) {
-        Err(e) => println!("Write CSV error {}", e),
+        Err(e) => println!("Write CSV error: {}", e),
         _ => println!("CSV export complete"),
     }
 
@@ -104,7 +105,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
 fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, events: &FxHashMap<&str, Vec<NaiveDateTime>>,
                 progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
-                -> Vec<StrategyResult> {
+                -> Result<Vec<StrategyResult>, Box<dyn Error>> {
 
     let mut event_dates:FxHashMap<&str, Vec<NaiveDate>> = FxHashMap::default();
     for (&k, v) in events {
@@ -195,7 +196,9 @@ fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
         }
     }
 
-    assert!(ret.len()>0);
-    ret
+    match ret.len() {
+        0 => Err(Box::new(SimpleError::new("Returns length was zero"))),
+        _ => Ok(ret)
+    }
 }
 
