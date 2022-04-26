@@ -34,10 +34,13 @@ fn main() -> Result<(), Box<dyn Error>>  {
     println!("{} rows", v.len());
 
     // Read get events data
-    let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list.csv";
-    let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc, &[3]);
-    let cpi = event_data.get("Consumer Price Index ex Food & Energy (YoY)").unwrap();
-    let fomc = event_data.get("Fed's Monetary Policy Statement").unwrap();
+    let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
+    let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
+    // let cpi = event_data.get("Consumer Price Index ex Food & Energy (YoY)").unwrap();
+    // let fomc = event_data.get("Fed's Monetary Policy Statement").unwrap();
+
+    let cpi = event_data.get("Inflation Rate YoY").unwrap();
+    let fomc = event_data.get("Fed Interest Rate Decision").unwrap();
     let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
     events.insert("CPI", cpi.to_owned());
     events.insert("FOMC", fomc.to_owned());
