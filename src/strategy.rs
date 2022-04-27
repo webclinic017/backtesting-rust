@@ -5,7 +5,7 @@ use std::error::Error;
 use std::time::Instant;
 use bdays::HolidayCalendar;
 use simple_error::SimpleError;
-use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_sharpe, vec_std, vec_unique, vec_where_eq};
+use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
 
 pub const N_FIELDS: usize = 7;
 pub static FIELD_NAMES: [&str; N_FIELDS] = ["interval", "start time", "end time", "sharpe", "max drawup", "max drawdown", "n obs"];
@@ -93,8 +93,8 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
 
             // General (context) conditions (save overhead)
             let mut gen_cond: Vec<Vec<bool>> = Vec::new();
-            gen_cond.push(day_of_strat(&datetimes, event_dates.get("FOMC").unwrap()));
-            // gen_cond.push(days_offset_strat(&datetimes, event_dates.get("CPI").unwrap(),
+            gen_cond.push(day_of_strat(&datetimes, event_dates.get("CPI").unwrap()));
+            // gen_cond.push(days_offset_strat(&datetimes, event_dates.get("FOMC").unwrap(),
             //                                 -10, -1, true));
             if gen_cond.is_empty() { gen_cond.push(vec![true; values.len()]) }
 
@@ -140,7 +140,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 }
             }
             // if (returns.len() == 0) | (drawups.len() == 0) | (drawdowns.len() == 0) { continue }
-            let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
+            let sharpe = vec_mean(&returns).unwrap_or(f64::NAN) / vec_std(&returns).unwrap_or(f64::NAN);
             if !sharpe.is_normal() { continue }
             // let sharpe = vec_sharpe(&returns).unwrap_or(f64::NAN);
             // if !sharpe.is_normal() { println!("sharpe is weird! {}", sharpe) }

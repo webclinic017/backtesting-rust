@@ -18,9 +18,8 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
     // Initialize Params
     let resolution: u64 = 1; // minutes
-    let interval_rng: Vec<u64> = (2..60).map(|x| x*resolution).collect();
+    let interval_rng: Vec<u64> = (2..60*8).map(|x| x*resolution).collect();
     let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
-    // let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
@@ -28,8 +27,9 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // Read timeseries CSV
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
-        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2019-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        // .filter(|x: &Row| x.datetime() < NaiveDateTime::parse_from_str("2016-04-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2022-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]))
         // .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
             // (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], 5*60)))
