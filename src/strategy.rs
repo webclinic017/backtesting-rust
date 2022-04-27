@@ -93,10 +93,10 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
 
             // General (context) conditions (save overhead)
             let mut gen_cond: Vec<Vec<bool>> = Vec::new();
-            // gen_cond.push(vec![true; values.len()]);
             gen_cond.push(day_of_strat(&datetimes, event_dates.get("FOMC").unwrap()));
             // gen_cond.push(days_offset_strat(&datetimes, event_dates.get("CPI").unwrap(),
             //                                 -10, -1, true));
+            if gen_cond.is_empty() { gen_cond.push(vec![true; values.len()]) }
 
             // Set entry conditions
             let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
@@ -141,9 +141,9 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             }
             // if (returns.len() == 0) | (drawups.len() == 0) | (drawdowns.len() == 0) { continue }
             let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
-            // if !sharpe.is_normal() { continue; }
+            if !sharpe.is_normal() { continue }
             // let sharpe = vec_sharpe(&returns).unwrap_or(f64::NAN);
-            if !sharpe.is_normal() { println!("sharpe is weird! {}", sharpe) }
+            // if !sharpe.is_normal() { println!("sharpe is weird! {}", sharpe) }
 
             let ann_factor = (252_f64).sqrt();
             drawups.sort_by(|a, b| comp_f64(a,b));
