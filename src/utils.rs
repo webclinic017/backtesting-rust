@@ -8,7 +8,7 @@ use csv::{ByteRecord, ReaderBuilder};
 use serde::de;
 use serde_derive::Deserialize;
 
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use std::cmp::Ordering;
 use simple_error::SimpleError;
 
@@ -31,6 +31,7 @@ impl Row {
 }
 
 pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<dyn Error>> {
+    println!("Reading CSV from {}", file_name);
     let mut file = File::open(file_name)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -48,12 +49,13 @@ pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<
         let row:T = r.deserialize(None)?;
         v.push(row);
     }
-
+    println!("Finished reading CSV");
     Ok(v)
 }
 
 use crate::strategy::{StrategyResult, FIELD_NAMES};
 pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
+    println!("Writing to csv");
     match v.len() {
         0 => Err(Box::new(SimpleError::new("CSV output has length zero"))),
         _ => {
@@ -64,9 +66,20 @@ pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
                 wtr.write_record(strat.fields_to_strings())?;
             }
             wtr.flush()?;
+            println!("Finished writing to csv");
             Ok(())
         },
     }
+}
+
+pub fn filter_timeseries_by_events(datetimes: Vec<Row>, event_dates: Vec<NaiveDate>, threshold_days: i32) -> Vec<Row> {
+    let filter_dates:Vec<NaiveDate> = (-threshold_days..=threshold_days).map(|i| {
+        event_dates.iter().map(move |&x| x + chrono::Duration::days(i.into()))
+    })
+        .flatten()
+        .collect();
+
+    datetimes.into_iter().filter(|x| filter_dates.contains(&x.datetime().date())).collect()
 }
 
 pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime> {

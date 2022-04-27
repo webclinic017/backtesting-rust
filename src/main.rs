@@ -12,9 +12,6 @@ use backtesting::strategy;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
-    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
-    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
-    println!("Using file: {}", file_name);
 
     // Initialize Params
     let resolution: u64 = 1; // minutes
@@ -24,29 +21,30 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
 
-    // Read timeseries CSV
-    let v: Vec<Row> = read_csv(file_name).unwrap()
-        .into_iter()
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
-        // .filter(|x: &Row| x.datetime() < NaiveDateTime::parse_from_str("2016-04-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
-        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2022-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
-        .filter(|x| (x.datetime().time() >= start_time_rng[0]))
-        // .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
-            // (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], 5*60)))
-            // (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
-        .collect();
-    println!("{} rows", v.len());
-
     // Read get events data
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
     let cpi = event_data.get("Inflation Rate YoY").unwrap();
-    let fomc = event_data.get("Fed Interest Rate Decision").unwrap();
+    let nfp = event_data.get("Non Farm Payrolls").unwrap();
     let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
     events.insert("CPI", cpi.to_owned());
-    events.insert("FOMC", fomc.to_owned());
+    events.insert("NFP", fomc.to_owned());
 
-    println!("Starting at UTC {}", chrono::Local::now());
+    // Read timeseries CSV
+    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
+    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
+    // println!("Using file: {}", file_name);
+    let mut v: Vec<Row> = read_csv(file_name).unwrap()
+        .into_iter()
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x| (x.datetime().time() >= start_time_rng[0]))
+        .collect();
+    v = filter_timeseries_by_events(v,
+                                    events.get("CPI").unwrap().iter().map(|x| x.date()).collect(),
+                                    3);
+    println!("{} rows after filters", v.len());
+
+    println!("Starting at {}", chrono::Local::now());
     let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED") {
         Ok(x) => {if x=="TRUE" { true } else { false }},
         Err(e) => { println!("{}", e); false },
@@ -56,14 +54,8 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
         let n_threads = 12;
-        // let n_chunks = if interval_rng.len() % n_threads > 0 {
-        //     interval_rng.len() / n_threads + 1
-        // } else {
-        //     interval_rng.len() / n_threads
-        // };
-        // let interval_rng: Vec<Vec<u64>> = interval_rng.chunks(n_chunks).map(|x| x.to_vec()).collect();
+        println!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
-        // for _ in 0..n_threads { interval_rng_.push(Vec::new())}
         for &i in interval_rng.iter() {
             interval_rng_[(i % n_threads as u64) as usize].push(i)
         }
@@ -90,6 +82,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     }
     if is_singlethreaded {
         // Single-threaded for profiling
+        println!("Running single-threaded");
         let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
 
@@ -99,11 +92,9 @@ fn main() -> Result<(), Box<dyn Error>>  {
     println!("{} seconds to run,", now.elapsed().as_secs());
     println!("for a total of {} rows", results.len());
 
-    println!("Writing to csv");
-
     match write_csv(&results) {
         Err(e) => println!("Write CSV error: {}", e),
-        _ => println!("CSV export complete"),
+        _ => (),
     }
 
     std::process::Command::new("cmd")
@@ -112,6 +103,5 @@ fn main() -> Result<(), Box<dyn Error>>  {
         .expect("failed to execute process");
 
     Ok(())
-
 }
 
