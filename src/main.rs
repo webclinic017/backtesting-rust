@@ -14,7 +14,7 @@ use backtesting::strategy;
 fn main() -> Result<(), Box<dyn Error>>  {
 
     // Initialize Params
-    let resolution: u64 = 10; // minutes
+    let resolution: u64 = 1; // minutes
     let interval_rng: Vec<u64> = (2..60*8).filter(|x| x % resolution == 0).collect();
     let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
 
@@ -29,25 +29,16 @@ fn main() -> Result<(), Box<dyn Error>>  {
         events.insert(e, event_data.get(e).unwrap().to_owned());
     }
 
-    // let cpi = event_data.get("Inflation Rate YoY").unwrap();
-    // let nfp = event_data.get("Non Farm Payrolls").unwrap();
-    // let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
-    // events.insert("CPI", cpi.to_owned());
-    // events.insert("NFP", fomc.to_owned());
-
     // Read timeseries CSV
     // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
     let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
-    // println!("Using file: {}", file_name);
     let mut v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
         .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2019-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]))
         .collect();
 
-    // let event_filter_dts = events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect();
     v = filter_timeseries_by_events(v,
-                                    // events.get("Inflation Rate YoY").unwrap().iter().map(|x| x.date()).collect(),
                                     &events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect(),
                                     10, 1);
     println!("{} rows after filters", v.len());
@@ -61,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
-        let n_threads = 10;
+        let n_threads = 12;
         println!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
         for &i in interval_rng.iter() {
@@ -83,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
             // let handle = thread::spawn(move || {
             let handle = thread::Builder::new().name(i.to_string()).spawn(move || {
                 strategy::run_analysis(datetimes, values, &interval_rng_i_, &start_time_rng_, &events_,
-                                       counter, total_runs, i).unwrap()
+                                       counter, total_runs).unwrap()
             });
             handles.push(handle.unwrap());
         }
@@ -97,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
 
         results = strategy::run_analysis(times, values, &interval_rng, &start_time_rng, &events,
-                                         Arc::new(Mutex::new(0)), total_runs, 1_usize).unwrap();
+                                         Arc::new(Mutex::new(0)), total_runs).unwrap();
     }
     println!("{} seconds to run,", now.elapsed().as_secs());
     println!("for a total of {} rows", results.len());

@@ -1,4 +1,5 @@
 use crate::BUS_DAY_CAL;
+use std::thread;
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
@@ -53,10 +54,10 @@ pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<Naive
     for &dt in event_dates {
         for i in early_offset_days..=late_offset_days {
             if is_bus_days {
-                event_date_ranges.push(BUS_DAY_CAL.advance_bdays(dt, i as i32))
+                event_date_ranges.push(BUS_DAY_CAL.advance_bdays(dt, -i as i32))
             }
             else {
-                event_date_ranges.push(dt + Duration::days(i));
+                event_date_ranges.push(dt + Duration::days(-i));
             }
         }
     }
@@ -66,8 +67,12 @@ pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<Naive
 
 pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, events: &FxHashMap<&str, Vec<NaiveDateTime>>,
-                    progress_counter: Arc<Mutex<u64>>, total_runs: u64, i_thread: usize)
+                    progress_counter: Arc<Mutex<u64>>, total_runs: u64)
                     -> Result<Vec<StrategyResult>, Box<dyn Error>> {
+    let thread_name = match thread::current().name() {
+        Some(x) => String::from(x),
+        None => String::from("no thread???")
+    };
 
     let mut event_dates:FxHashMap<&str, Vec<NaiveDate>> = FxHashMap::default();
     for (&k, v) in events {
@@ -78,7 +83,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
     let mut gen_cond: Vec<Vec<bool>> = Vec::new();
     gen_cond.push(day_of_strat(&datetimes, event_dates.get("Inflation Rate YoY").unwrap()));
     gen_cond.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
-                                    -20, -1, true));
+                                    -8, -1, true));
     // Quick check to see if general conditions never allow a result to occur
     let mut truthy = vec![true; values.len()];
     if gen_cond.is_empty() { gen_cond.push(truthy.clone()) }
@@ -100,7 +105,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     let elapsed = now.elapsed().as_secs();
                     let pct = (*p as f32)/(total_runs as f32);
                     println!("Running iteration {} ({:.1}%) out of {} on thread {}, {} seconds elapsed  (total {:.0}s expected)",
-                             *p, pct*100., total_runs, i_thread, elapsed, (elapsed as f32)/pct);
+                             *p, pct*100., total_runs, thread_name, elapsed, (elapsed as f32)/pct);
                 }
             }
             let end_time = add_time(start_time, interval*60);
@@ -180,7 +185,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
     }
 
     match ret.len() {
-        0 => Err(Box::new(SimpleError::new(format!("Returns on thread {} length was zero", i_thread)))),
+        0 => Err(Box::new(SimpleError::new(format!("Returns on thread {} length was zero", thread_name)))),
         _ => Ok(ret)
     }
 }
