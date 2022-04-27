@@ -14,8 +14,8 @@ use backtesting::strategy;
 fn main() -> Result<(), Box<dyn Error>>  {
 
     // Initialize Params
-    let resolution: u64 = 1; // minutes
-    let interval_rng: Vec<u64> = (2..60*8).map(|x| x*resolution).collect();
+    let resolution: u64 = 10; // minutes
+    let interval_rng: Vec<u64> = (2..60*8).filter(|x| x % resolution == 0).collect();
     let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
@@ -24,11 +24,16 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // Read get events data
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
-    let cpi = event_data.get("Inflation Rate YoY").unwrap();
-    let nfp = event_data.get("Non Farm Payrolls").unwrap();
     let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
-    events.insert("CPI", cpi.to_owned());
-    events.insert("NFP", fomc.to_owned());
+    for e in ["Inflation Rate YoY", "Non Farm Payrolls"] {
+        events.insert(e, event_data.get(e).unwrap().to_owned());
+    }
+
+    // let cpi = event_data.get("Inflation Rate YoY").unwrap();
+    // let nfp = event_data.get("Non Farm Payrolls").unwrap();
+    // let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
+    // events.insert("CPI", cpi.to_owned());
+    // events.insert("NFP", fomc.to_owned());
 
     // Read timeseries CSV
     // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
@@ -36,12 +41,15 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // println!("Using file: {}", file_name);
     let mut v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2019-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]))
         .collect();
+
+    // let event_filter_dts = events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect();
     v = filter_timeseries_by_events(v,
-                                    events.get("CPI").unwrap().iter().map(|x| x.date()).collect(),
-                                    3);
+                                    // events.get("Inflation Rate YoY").unwrap().iter().map(|x| x.date()).collect(),
+                                    &events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect(),
+                                    10, 1);
     println!("{} rows after filters", v.len());
 
     println!("Starting at {}", chrono::Local::now());
@@ -53,7 +61,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
-        let n_threads = 12;
+        let n_threads = 10;
         println!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
         for &i in interval_rng.iter() {
@@ -64,6 +72,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
         let mut handles = vec![];
 
         for i in 0..interval_rng_.len() {
+        // for i in [0] {
             let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
             let values: Vec<f64> = v.iter().map(|x| x.close).collect();
             let start_time_rng_: Vec<NaiveTime> = start_time_rng.clone();
@@ -71,11 +80,12 @@ fn main() -> Result<(), Box<dyn Error>>  {
             let events_ = events.clone();
             let counter = Arc::clone(&counter);
 
-            let handle = thread::spawn(move || {
+            // let handle = thread::spawn(move || {
+            let handle = thread::Builder::new().name(i.to_string()).spawn(move || {
                 strategy::run_analysis(datetimes, values, &interval_rng_i_, &start_time_rng_, &events_,
-                                       counter, total_runs, i).unwrap_or(vec![])
+                                       counter, total_runs, i).unwrap()
             });
-            handles.push(handle);
+            handles.push(handle.unwrap());
         }
 
         results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();

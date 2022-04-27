@@ -1,3 +1,4 @@
+use crate::BUS_DAY_CAL;
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
@@ -45,7 +46,6 @@ pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>
         .collect()
 }
 
-static BUS_DAY_CAL:bdays::calendars::us::USSettlement = bdays::calendars::us::USSettlement;
 pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
                          early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool> {
     assert!(early_offset_days<=late_offset_days);
@@ -74,6 +74,21 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
         event_dates.insert(k, v.iter().map(|x| x.date()).collect());
     }
 
+    // General (context) conditions (save overhead)
+    let mut gen_cond: Vec<Vec<bool>> = Vec::new();
+    gen_cond.push(day_of_strat(&datetimes, event_dates.get("Inflation Rate YoY").unwrap()));
+    gen_cond.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
+                                    -20, -1, true));
+    // Quick check to see if general conditions never allow a result to occur
+    let mut truthy = vec![true; values.len()];
+    if gen_cond.is_empty() { gen_cond.push(truthy.clone()) }
+    else {
+        for c in gen_cond.iter() {
+            truthy = truthy.iter().zip(c).map(|(x, y)| x & y).collect();
+        }
+        assert!(truthy.contains(&true), "General conditions make this impossible");
+    }
+
     let mut ret: Vec<StrategyResult> = Vec::new();
     let now = Instant::now();
     for interval in interval_rng {
@@ -90,13 +105,6 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             }
             let end_time = add_time(start_time, interval*60);
             if end_time >= NaiveTime::from_hms(17,0,0) { continue; } // End of day for futures
-
-            // General (context) conditions (save overhead)
-            let mut gen_cond: Vec<Vec<bool>> = Vec::new();
-            gen_cond.push(day_of_strat(&datetimes, event_dates.get("CPI").unwrap()));
-            // gen_cond.push(days_offset_strat(&datetimes, event_dates.get("FOMC").unwrap(),
-            //                                 -10, -1, true));
-            if gen_cond.is_empty() { gen_cond.push(vec![true; values.len()]) }
 
             // Set entry conditions
             let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
@@ -149,21 +157,30 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
-            // println!("{}, {}", interval, start_time);
+            let max_drawup = match drawups.get(1) {
+                Some(x) => x,
+                None => continue
+            };
+            let max_drawdown = match drawdowns.get(drawdowns.len() - 1) {
+                Some(x) => x,
+                None => continue
+            };
+
             ret.push(StrategyResult {
                 interval: *interval,
                 start_time: *start_time,
                 end_time: end_time,
                 sharpe: sharpe*ann_factor,
-                max_drawup: drawups[0],
-                max_drawdown: drawdowns[drawdowns.len() - 1],
+                max_drawup: *max_drawup,
+                max_drawdown: *max_drawdown,
                 n_obs: n_obs,
             });
+            // println!("Push successful at: {}, {}", interval, start_time);
         }
     }
 
     match ret.len() {
-        0 => Err(Box::new(SimpleError::new("Returns length was zero"))),
+        0 => Err(Box::new(SimpleError::new(format!("Returns on thread {} length was zero", i_thread)))),
         _ => Ok(ret)
     }
 }

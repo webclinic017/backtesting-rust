@@ -1,3 +1,4 @@
+use crate::BUS_DAY_CAL;
 pub use crate::vector_utils::*;
 use rustc_hash::FxHashMap;
 use std::fs::File;
@@ -7,7 +8,7 @@ use std::time::Duration;
 use csv::{ByteRecord, ReaderBuilder};
 use serde::de;
 use serde_derive::Deserialize;
-
+use bdays::HolidayCalendar;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use std::cmp::Ordering;
 use simple_error::SimpleError;
@@ -72,9 +73,9 @@ pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
     }
 }
 
-pub fn filter_timeseries_by_events(datetimes: Vec<Row>, event_dates: Vec<NaiveDate>, threshold_days: i32) -> Vec<Row> {
-    let filter_dates:Vec<NaiveDate> = (-threshold_days..=threshold_days).map(|i| {
-        event_dates.iter().map(move |&x| x + chrono::Duration::days(i.into()))
+pub fn filter_timeseries_by_events(datetimes: Vec<Row>, event_dates: &Vec<NaiveDate>, back_threshold_bdays: u32, fwd_threshold_bdays: u32) -> Vec<Row> {
+    let filter_dates:Vec<NaiveDate> = (-(back_threshold_bdays as i32)..=(fwd_threshold_bdays as i32)).map(|i| {
+        event_dates.iter().map(move |&x| BUS_DAY_CAL.advance_bdays(x, i))
     })
         .flatten()
         .collect();
