@@ -5,7 +5,7 @@ use std::error::Error;
 use std::time::Instant;
 use bdays::HolidayCalendar;
 use simple_error::SimpleError;
-use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
+use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_sharpe, vec_std, vec_unique, vec_where_eq};
 
 pub const N_FIELDS: usize = 7;
 pub static FIELD_NAMES: [&str; N_FIELDS] = ["interval", "start time", "end time", "sharpe", "max drawup", "max drawdown", "n obs"];
@@ -82,17 +82,21 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 let mut p = progress_counter.lock().unwrap();
                 *p += 1;
                 if *p % 100 == 0 {
-                    println!("Running iteration {} out of {} on thread {}, {} seconds elapsed",
-                             *p, total_runs, i_thread, now.elapsed().as_secs());
+                    let elapsed = now.elapsed().as_secs();
+                    let pct = (*p as f32)/(total_runs as f32);
+                    println!("Running iteration {} ({:.1}%) out of {} on thread {}, {} seconds elapsed  (total {:.0}s expected)",
+                             *p, pct*100., total_runs, i_thread, elapsed, (elapsed as f32)/pct);
                 }
             }
             let end_time = add_time(start_time, interval*60);
+            if end_time >= NaiveTime::from_hms(17,0,0) { continue; } // End of day for futures
 
             // General (context) conditions (save overhead)
             let mut gen_cond: Vec<Vec<bool>> = Vec::new();
-            gen_cond.push(day_of_strat(&datetimes, event_dates.get("CPI").unwrap()));
-            gen_cond.push(days_offset_strat(&datetimes, event_dates.get("FOMC").unwrap(),
-                                            1, 17, true));
+            // gen_cond.push(vec![true; values.len()]);
+            gen_cond.push(day_of_strat(&datetimes, event_dates.get("FOMC").unwrap()));
+            // gen_cond.push(days_offset_strat(&datetimes, event_dates.get("CPI").unwrap(),
+            //                                 -10, -1, true));
 
             // Set entry conditions
             let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
@@ -103,17 +107,12 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
 
             // Set exit conditions
             let exit_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==end_time).collect();
-            // let exit_cond: Vec<i32> = izip![&exit_cond1, &gen_cond1, &gen_cond2].map(|(x,y,z)| (x&y&z) as i32).collect();
             let mut exit_cond:Vec<bool> = vec![true; values.len()];
-            // for c in gen_cond.iter().chain(vec![exit_cond1].iter()) {
             for c in vec![exit_cond1].iter().chain(gen_cond.iter()) {
                 exit_cond = exit_cond.iter().zip(c).map(|(x,y)| x&y).collect();
             }
 
             // Set r as total condition vector
-            // let mut r:Vec<i32> = vec![0; values.len()];
-            // r = r.iter().zip(entry_cond.iter()).map(|(&x, &y)| x + (y as i32)).collect();
-            // r = r.iter().zip(exit_cond.iter()).map(|(&x, &y)| x - (y as i32)).collect();
             let r:Vec<i32> = entry_cond.iter().zip(exit_cond.iter())
                 .map(|(&x, &y)| (x as i32) - (y as i32))
                 .collect();
@@ -140,12 +139,17 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     drawdowns.push(d[d.len() - 1]);
                 }
             }
+            // if (returns.len() == 0) | (drawups.len() == 0) | (drawdowns.len() == 0) { continue }
             let sharpe = vec_mean(&returns).unwrap() / vec_std(&returns).unwrap();
-            if !sharpe.is_normal() { continue; }
+            // if !sharpe.is_normal() { continue; }
+            // let sharpe = vec_sharpe(&returns).unwrap_or(f64::NAN);
+            if !sharpe.is_normal() { println!("sharpe is weird! {}", sharpe) }
+
             let ann_factor = (252_f64).sqrt();
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
+            // println!("{}, {}", interval, start_time);
             ret.push(StrategyResult {
                 interval: *interval,
                 start_time: *start_time,

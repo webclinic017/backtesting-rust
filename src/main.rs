@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let resolution: u64 = 1; // minutes
     let interval_rng: Vec<u64> = (2..60).map(|x| x*resolution).collect();
     let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
+    // let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     println!("Running {} times", total_runs);
@@ -27,9 +28,10 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // Read timeseries CSV
     let v: Vec<Row> = read_csv(file_name).unwrap()
         .into_iter()
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2016-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
-        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2019-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2020-01-01 00:00:01", "%Y-%m-%d %H:%M:%S").unwrap())
         .filter(|x| (x.datetime().time() >= start_time_rng[0]) &
+            // (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], 5*60)))
             (x.datetime().time() <= add_time(&start_time_rng[start_time_rng.len() - 1], interval_rng[interval_rng.len()-1]*60)))
         .collect();
     println!("{} rows", v.len());
@@ -52,21 +54,27 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
-        let n_threads = 8;
-        let n_chunks = if interval_rng.len() % n_threads > 0 {
-            interval_rng.len() / n_threads + 1
-        } else {
-            interval_rng.len() / n_threads
-        };
-        let interval_rng: Vec<Vec<u64>> = interval_rng.chunks(n_chunks).map(|x| x.to_vec()).collect();
+        let n_threads = 12;
+        // let n_chunks = if interval_rng.len() % n_threads > 0 {
+        //     interval_rng.len() / n_threads + 1
+        // } else {
+        //     interval_rng.len() / n_threads
+        // };
+        // let interval_rng: Vec<Vec<u64>> = interval_rng.chunks(n_chunks).map(|x| x.to_vec()).collect();
+        let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
+        // for _ in 0..n_threads { interval_rng_.push(Vec::new())}
+        for &i in interval_rng.iter() {
+            interval_rng_[(i % n_threads as u64) as usize].push(i)
+        }
 
         let counter = Arc::new(Mutex::new(0_u64));
         let mut handles = vec![];
-        for i in 0..interval_rng.len() {
+
+        for i in 0..interval_rng_.len() {
             let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
             let values: Vec<f64> = v.iter().map(|x| x.close).collect();
             let start_time_rng_: Vec<NaiveTime> = start_time_rng.clone();
-            let interval_rng_i_: Vec<u64> = interval_rng[i].clone();
+            let interval_rng_i_: Vec<u64> = interval_rng_[i].clone();
             let events_ = events.clone();
             let counter = Arc::clone(&counter);
 

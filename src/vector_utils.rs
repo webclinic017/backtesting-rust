@@ -65,6 +65,21 @@ pub fn vec_std(v: &Vec<f64>) -> Option<f64> {
         _ => None,
     }
 }
+pub fn vec_sharpe(v: &Vec<f64>) -> Option<f64> {
+    let mean = match vec_mean(v) {
+        Some(x) => x,
+        None => f64::NAN,
+    };
+    let std = match vec_std(v) {
+        Some(x) => x,
+        None => f64::NAN,
+    };
+    let r = mean/std;
+    match r.is_normal() {
+        true => None,
+        _ => Some(r),
+    }
+}
 pub fn vec_diff(v: &Vec<f64>, diff: usize) -> Option<Vec<f64>> {
     let count = v.len();
     if count == 1 { return None }
