@@ -2,6 +2,8 @@ use std::env;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
+use log::{error, info, warn};
+use log4rs;
 use chrono::{NaiveDateTime, NaiveTime};
 use backtesting::strategy::StrategyResult;
 use backtesting::utils::*;
@@ -13,6 +15,8 @@ use backtesting::strategy::*;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
+    // Set up logging
+    log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
 
     // Initialize Params
     let resolution: u64 = 1; // minutes
@@ -20,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
-    println!("Running {} times", total_runs);
+    info!("Running {} times", total_runs);
 
     // Read get events data
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
@@ -44,7 +48,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     v = filter_timeseries_by_events(v,
                                     &events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect(),
                                     10, 1);
-    println!("{} rows after filters", v.len());
+    info!("{} rows after filters", v.len());
 
     let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
     let values: Vec<f64> = v.iter().map(|x| x.close).collect();
@@ -54,17 +58,17 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // context_conditions.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
     //                                           -8, -1, true));
 
-    println!("Starting at {}", chrono::Local::now());
+    info!("Starting at {}", chrono::Local::now());
     let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED") {
         Ok(x) => {if x=="TRUE" { true } else { false }},
-        Err(e) => { println!("{}", e); false },
+        Err(e) => { error!("{}", e); false },
     };
 
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
         let n_threads = 8;
-        println!("Running multi({})-threaded", n_threads);
+        info!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
         for &i in interval_rng.iter() {
             interval_rng_[(i % n_threads as u64) as usize].push(i)
@@ -91,15 +95,15 @@ fn main() -> Result<(), Box<dyn Error>>  {
     }
     if is_singlethreaded {
         // Single-threaded for profiling
-        println!("Running single-threaded");
+        info!("Running single-threaded");
         results = run_analysis(datetimes, values, &interval_rng, &start_time_rng,
                                Arc::new(Mutex::new(0)), total_runs, &context_conditions).unwrap();
     }
-    println!("{} seconds to run,", now.elapsed().as_secs());
-    println!("for a total of {} rows", results.len());
+    info!("{} seconds to run,", now.elapsed().as_secs());
+    info!("for a total of {} rows", results.len());
 
     match write_csv(&results) {
-        Err(e) => println!("Write CSV error: {}", e),
+        Err(e) => error!("Write CSV error: {}", e),
         _ => (),
     }
 

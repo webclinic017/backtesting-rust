@@ -2,6 +2,7 @@ use std::cmp::{PartialEq, PartialOrd, Eq};
 use std::hash::Hash;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use itertools::Itertools;
+use log::warn;
 use rustc_hash::FxHashSet;
 
 pub fn vec_unique<T: Eq+Hash>(r: &Vec<T>) -> FxHashSet<&T> {
@@ -41,7 +42,10 @@ pub fn vec_mean(v: &Vec<f64>) -> Option<f64> {
 
     match count {
         positive if positive > 0 => Some(sum / count as f64),
-        _ => None,
+        _ => {
+            warn!("vec_mean: vector has length zero");
+            None
+        },
     }
 }
 pub fn vec_variance(v: &Vec<f64>) -> Option<f64> {
@@ -54,7 +58,10 @@ pub fn vec_variance(v: &Vec<f64>) -> Option<f64> {
             }).sum::<f64>() / (count - 1) as f64;
             Some(variance)
         },
-        _ => None
+        _ => {
+            warn!("vec_variance: vector has length zero");
+            None
+        }
     }
 }
 pub fn vec_std(v: &Vec<f64>) -> Option<f64> {
@@ -63,12 +70,18 @@ pub fn vec_std(v: &Vec<f64>) -> Option<f64> {
             let std = variance.sqrt();
             Some(std)
         },
-        _ => None,
+        _ => {
+            warn!("vec_std: vector has length zero");
+            None
+        },
     }
 }
 pub fn vec_diff(v: &Vec<f64>, diff: usize) -> Option<Vec<f64>> {
     let count = v.len();
-    if count == 1 { return None }
+    if count <= diff {
+        warn!("vec_diff: vector has length {}, which is not greater than diff {}", count, diff);
+        return None
+    }
     let d:Vec<f64> = (0..(v.len()-diff)).map(|i| &v[i+diff] - &v[i]).collect();
     Some(d)
 }

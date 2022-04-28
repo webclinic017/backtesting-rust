@@ -1,3 +1,4 @@
+use log::{error, info, warn};
 use crate::BUS_DAY_CAL;
 pub use crate::vector_utils::*;
 use rustc_hash::FxHashMap;
@@ -32,7 +33,7 @@ impl Row {
 }
 
 pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<dyn Error>> {
-    println!("Reading CSV from {}", file_name);
+    info!("Reading CSV from {}", file_name);
     let mut file = File::open(file_name)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -50,15 +51,19 @@ pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<
         let row:T = r.deserialize(None)?;
         v.push(row);
     }
-    println!("Finished reading CSV");
+    info!("Finished reading CSV");
     Ok(v)
 }
 
 use crate::strategy::{StrategyResult, FIELD_NAMES};
 pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
-    println!("Writing to csv");
+    info!("Writing to csv");
     match v.len() {
-        0 => Err(Box::new(SimpleError::new("CSV output has length zero"))),
+        0 => {
+            let msg = "CSV output has length zero";
+            error!("{}", msg);
+            Err(Box::new(SimpleError::new(msg)))
+        },
         _ => {
             let mut wtr = csv::Writer::from_path("returns_test.csv")?;
             wtr.write_record(&FIELD_NAMES)?;
@@ -67,7 +72,7 @@ pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
                 wtr.write_record(strat.fields_to_strings())?;
             }
             wtr.flush()?;
-            println!("Finished writing to csv");
+            info!("Finished writing to csv");
             Ok(())
         },
     }

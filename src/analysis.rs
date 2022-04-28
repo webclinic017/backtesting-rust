@@ -1,3 +1,4 @@
+use log::{error, info, warn};
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
@@ -13,6 +14,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
                     progress_counter: Arc<Mutex<u64>>, total_runs: u64, context_conditions: &Vec<Vec<bool>>)
                     -> Result<Vec<StrategyResult>, Box<dyn Error>> {
+    info!("trying to run this in a logger i think");
     let thread_name = match thread::current().name() {
         Some(x) => String::from(x),
         None => String::from("no thread???")
@@ -35,7 +37,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 if *p % 100 == 0 {
                     let elapsed = now.elapsed().as_secs();
                     let pct = (*p as f32)/(total_runs as f32);
-                    println!("Running iteration {} ({:.1}%) out of {} on thread {}, {} seconds elapsed  (total {:.0}s expected)",
+                    info!("Running iteration {} ({:.1}%) out of {} on thread {}, {} seconds elapsed  (total {:.0}s expected)",
                              *p, pct*100., total_runs, thread_name, elapsed, (elapsed as f32)/pct);
                 }
             }
@@ -82,7 +84,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             let sharpe = vec_mean(&returns).unwrap_or(f64::NAN) / vec_std(&returns).unwrap_or(f64::NAN);
             if !sharpe.is_normal() { continue }
             // let sharpe = vec_sharpe(&returns).unwrap_or(f64::NAN);
-            // if !sharpe.is_normal() { println!("sharpe is weird! {}", sharpe) }
+            // if !sharpe.is_normal() { info!("sharpe is weird! {}", sharpe) }
 
             let ann_factor = (252_f64).sqrt();
             drawups.sort_by(|a, b| comp_f64(a,b));
@@ -106,12 +108,16 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 max_drawdown: *max_drawdown,
                 n_obs: n_obs,
             });
-            // println!("Push successful at: {}, {}", interval, start_time);
+            // info!("Push successful at: {}, {}", interval, start_time);
         }
     }
 
     match ret.len() {
-        0 => Err(Box::new(SimpleError::new(format!("Returns on thread {} length was zero", thread_name)))),
+        0 => {
+            let msg = format!("Returns on thread {} length was zero", thread_name);
+            error!("{}", msg);
+            Err(Box::new(SimpleError::new(msg)))
+        },
         _ => Ok(ret)
     }
 }
