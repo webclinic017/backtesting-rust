@@ -1,13 +1,6 @@
 use crate::BUS_DAY_CAL;
-use std::thread;
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
-use rustc_hash::FxHashMap;
-use std::sync::{Arc, Mutex};
-use std::error::Error;
-use std::time::Instant;
 use bdays::HolidayCalendar;
-use simple_error::SimpleError;
-use crate::utils::{add_time, comp_f64, fill_ids, vec_cumsum, vec_diff, vec_mean, vec_std, vec_unique, vec_where_eq};
 
 pub const N_FIELDS: usize = 7;
 pub static FIELD_NAMES: [&str; N_FIELDS] = ["interval", "start time", "end time", "sharpe", "max drawup", "max drawdown", "n obs"];
@@ -40,6 +33,39 @@ impl Default for StrategyResult {
         }
     }
 }
+
+pub trait ContextCondition {}
+
+pub struct DayOfCondition;
+impl DayOfCondition {
+    pub fn run(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool> {
+        datetimes.iter()
+            .map(|x| event_dates.contains(&x.date()))
+            .collect()
+    }
+}
+impl ContextCondition for DayOfCondition {}
+
+pub struct DayOffsetCondition;
+impl DayOffsetCondition {
+    pub fn run(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
+               early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool> {
+        assert!(early_offset_days<=late_offset_days);
+        let mut event_date_ranges = event_dates.clone();
+        for &dt in event_dates {
+            for i in early_offset_days..=late_offset_days {
+                if is_bus_days {
+                    event_date_ranges.push(BUS_DAY_CAL.advance_bdays(dt, -i as i32))
+                }
+                else {
+                    event_date_ranges.push(dt + Duration::days(-i));
+                }
+            }
+        }
+        datetimes.iter().map(|x| event_date_ranges.contains(&x.date())).collect()
+    }
+}
+impl ContextCondition for DayOffsetCondition {}
 
 pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool> {
     datetimes.iter()

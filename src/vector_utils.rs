@@ -1,5 +1,6 @@
 use std::cmp::{PartialEq, PartialOrd, Eq};
 use std::hash::Hash;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
@@ -86,4 +87,10 @@ pub fn vec_add_scalar<T: Copy + std::ops::Add<Output=T>>(v: &Vec<T>, scalar: T) 
 }
 pub fn vec_sub_scalar<T: Copy + std::ops::Sub<Output=T>>(v: &Vec<T>, scalar: T) -> Vec<T> {
     v.into_iter().map(|&x| x - scalar).collect_vec()
+}
+pub fn vec_dates(v: &Vec<NaiveDateTime>) -> Vec<NaiveDate> {
+    v.iter().map(|x| x.date()).collect()
+}
+pub fn vec_times(v: &Vec<NaiveDateTime>) -> Vec<NaiveTime> {
+    v.iter().map(|x| x.time()).collect()
 }

@@ -2,8 +2,7 @@ use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;
 use std::time::Instant;
-use rustc_hash::FxHashMap;
-use chrono::{NaiveDate, NaiveTime, NaiveDateTime, Duration};
+use chrono::{NaiveTime, NaiveDateTime};
 use simple_error::SimpleError;
 pub use crate::strategy::*;
 pub use crate::utils::*;
@@ -11,32 +10,19 @@ pub use crate::vector_utils::*;
 
 
 pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
-                    interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>, events: &FxHashMap<&str, Vec<NaiveDateTime>>,
-                    progress_counter: Arc<Mutex<u64>>, total_runs: u64)
+                    interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
+                    progress_counter: Arc<Mutex<u64>>, total_runs: u64, context_conditions: &Vec<Vec<bool>>)
                     -> Result<Vec<StrategyResult>, Box<dyn Error>> {
     let thread_name = match thread::current().name() {
         Some(x) => String::from(x),
         None => String::from("no thread???")
     };
 
-    let mut event_dates:FxHashMap<&str, Vec<NaiveDate>> = FxHashMap::default();
-    for (&k, v) in events {
-        event_dates.insert(k, v.iter().map(|x| x.date()).collect());
-    }
-
-    // General (context) conditions (save overhead)
-    let mut gen_cond: Vec<Vec<bool>> = Vec::new();
-    gen_cond.push(day_of_strat(&datetimes, event_dates.get("Inflation Rate YoY").unwrap()));
-    gen_cond.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
-                                    -8, -1, true));
-    // Quick check to see if general conditions never allow a result to occur
-    let mut truthy = vec![true; values.len()];
-    if gen_cond.is_empty() { gen_cond.push(truthy.clone()) }
-    else {
-        for c in gen_cond.iter() {
-            truthy = truthy.iter().zip(c).map(|(x, y)| x & y).collect();
+    let mut context_condition = vec![true; values.len()];
+    if !context_conditions.is_empty() {
+        for c in context_conditions {
+            context_condition = context_condition.iter().zip(c.iter()).map(|(x, y)| x & y).collect();
         }
-        assert!(truthy.contains(&true), "General conditions make this impossible");
     }
 
     let mut ret: Vec<StrategyResult> = Vec::new();
@@ -56,19 +42,14 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             let end_time = add_time(start_time, interval*60);
             if end_time >= NaiveTime::from_hms(17,0,0) { continue; } // End of day for futures
 
-            // Set entry conditions
-            let entry_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
-            let mut entry_cond:Vec<bool> = vec![true; values.len()];
-            for c in vec![entry_cond1].iter().chain(gen_cond.iter()) {
-                entry_cond = entry_cond.iter().zip(c).map(|(x,y)| x&y).collect();
-            }
+            // Set entry condition
+            let mut entry_cond: Vec<bool> = datetimes.iter().map(|x| x.time()==*start_time).collect(); // absolute time strat
 
-            // Set exit conditions
-            let exit_cond1: Vec<bool> = datetimes.iter().map(|x| x.time()==end_time).collect();
-            let mut exit_cond:Vec<bool> = vec![true; values.len()];
-            for c in vec![exit_cond1].iter().chain(gen_cond.iter()) {
-                exit_cond = exit_cond.iter().zip(c).map(|(x,y)| x&y).collect();
-            }
+            // Set exit condition
+            let mut exit_cond: Vec<bool> = datetimes.iter().map(|x| x.time()==end_time).collect();
+
+            entry_cond = entry_cond.iter().zip(&context_condition).map(|(x,y)| x&y).collect();
+            exit_cond = exit_cond.iter().zip(&context_condition).map(|(x,y)| x&y).collect();
 
             // Set r as total condition vector
             let r:Vec<i32> = entry_cond.iter().zip(exit_cond.iter())
