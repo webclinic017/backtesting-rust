@@ -6,9 +6,10 @@ use chrono::{NaiveDateTime, NaiveTime};
 use backtesting::strategy::StrategyResult;
 use backtesting::utils::*;
 use backtesting::events::*;
+use backtesting::analysis::run_analysis;
 use std::time::Instant;
 use rustc_hash::FxHashMap;
-use backtesting::strategy;
+use backtesting::strategy::*;
 
 
 fn main() -> Result<(), Box<dyn Error>>  {
@@ -73,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
 
             // let handle = thread::spawn(move || {
             let handle = thread::Builder::new().name(i.to_string()).spawn(move || {
-                strategy::run_analysis(datetimes, values, &interval_rng_i_, &start_time_rng_, &events_,
+                run_analysis(datetimes, values, &interval_rng_i_, &start_time_rng_, &events_,
                                        counter, total_runs).unwrap()
             });
             handles.push(handle.unwrap());
@@ -87,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
         let times: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
         let values: Vec<f64> = v.iter().map(|x| x.close).collect();
 
-        results = strategy::run_analysis(times, values, &interval_rng, &start_time_rng, &events,
+        results = run_analysis(times, values, &interval_rng, &start_time_rng, &events,
                                          Arc::new(Mutex::new(0)), total_runs).unwrap();
     }
     println!("{} seconds to run,", now.elapsed().as_secs());

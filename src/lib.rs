@@ -4,6 +4,7 @@ pub mod vector_utils;
 pub mod utils;
 pub mod strategy;
 pub mod events;
+pub mod analysis;
 
 #[cfg(test)]
 mod test;
