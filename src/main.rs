@@ -14,14 +14,16 @@ use rustc_hash::FxHashMap;
 use backtesting::strategy::*;
 
 
-fn main() -> Result<(), Box<dyn Error>>  {
+fn main() -> Result<(), Box<dyn Error>> {
     // Set up logging
     log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
 
     // Initialize Params
     let resolution: u64 = 1; // minutes
-    let interval_rng: Vec<u64> = (2..60*8).filter(|x| x % resolution == 0).collect();
+    let interval_rng: Vec<u64> = (2..=60*8).filter(|x| x % resolution == 0).collect();
     let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
+    info!("Inveral params (mins): {} to {}, by step {}", interval_rng[0], interval_rng[interval_rng.len()-1], resolution);
+    info!("Start time params: {} to {}, with resolution {}", start_time_rng[0], start_time_rng[start_time_rng.len()-1], resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     info!("Running {} times", total_runs);

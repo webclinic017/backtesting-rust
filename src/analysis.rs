@@ -14,7 +14,6 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
                     progress_counter: Arc<Mutex<u64>>, total_runs: u64, context_conditions: &Vec<Vec<bool>>)
                     -> Result<Vec<StrategyResult>, Box<dyn Error>> {
-    info!("trying to run this in a logger i think");
     let thread_name = match thread::current().name() {
         Some(x) => String::from(x),
         None => String::from("no thread???")
@@ -35,9 +34,9 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 let mut p = progress_counter.lock().unwrap();
                 *p += 1;
                 if *p % 100 == 0 {
-                    let elapsed = now.elapsed().as_secs();
+                    let elapsed = now.elapsed().as_secs_f32();
                     let pct = (*p as f32)/(total_runs as f32);
-                    info!("Running iteration {} ({:.1}%) out of {} on thread {}, {} seconds elapsed  (total {:.0}s expected)",
+                    info!("Iteration {} ({:.1}%) out of {} on thread {}, {:.1}s elapsed  (total {:.0}s expected)",
                              *p, pct*100., total_runs, thread_name, elapsed, (elapsed as f32)/pct);
                 }
             }
@@ -63,11 +62,13 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             let mut returns: Vec<f64> = Vec::new();
             let mut drawups: Vec<f64> = Vec::new();
             let mut drawdowns: Vec<f64> = Vec::new();
+            let mut datetime_data: Vec<Vec<NaiveDateTime>> = Vec::new();
+            let mut value_data: Vec<Vec<f64>> = Vec::new();
             let mut n_obs= 0_usize;
             for i in vec_unique(&r).into_iter() {
                 if i == &0 { continue; } // 0 means no observation
                 let ix = vec_where_eq(&r, i);
-                let _t = &datetimes[ix[0]..=ix[ix.len()-1]];
+                let t = datetimes[ix[0]..=ix[ix.len()-1]].to_vec();
                 let v:Vec<f64> = values[ix[0]..=ix[ix.len()-1]].to_vec();
 
                 if v.len() > 2 {
@@ -78,6 +79,8 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     returns.push(v[v.len()-1] - v[0]);
                     drawups.push(d[0]);
                     drawdowns.push(d[d.len() - 1]);
+                    datetime_data.push(t);
+                    value_data.push(v);
                 }
             }
             let sharpe = vec_mean(&returns).unwrap_or(f64::NAN) / vec_std(&returns).unwrap_or(f64::NAN);
@@ -103,7 +106,9 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 sharpe: sharpe*ann_factor,
                 max_drawup: *max_drawup,
                 max_drawdown: *max_drawdown,
-                n_obs: n_obs,
+                n_obs,
+                datetime_data,
+                value_data,
             });
         }
     }
