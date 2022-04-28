@@ -29,12 +29,9 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // Read get events data
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
-    let mut events: FxHashMap<&str, Vec<NaiveDateTime>> = FxHashMap::default();
-    // let mut event_dates:FxHashMap<&str, Vec<NaiveDate>> = FxHashMap::default();
-    for e in ["Inflation Rate YoY", "Non Farm Payrolls"] {
-        events.insert(e, event_data.get(e).unwrap().to_owned());
-        // event_dates.insert(e, vec_dates(event_data.get(e).unwrap()));
-    }
+    let events: FxHashMap<&str, Vec<NaiveDateTime>> = ["Inflation Rate YoY", "Non Farm Payrolls"].iter()
+        .map(|&e| (e, event_data.get(e).unwrap().to_owned()))
+        .collect();
 
     // Read timeseries CSV
     // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
@@ -58,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     // context_conditions.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
     //                                           -8, -1, true));
 
-    info!("Starting at {}", chrono::Local::now());
+    info!("Starting analysis");
     let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED") {
         Ok(x) => {if x=="TRUE" { true } else { false }},
         Err(e) => { error!("{}", e); false },
@@ -103,7 +100,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     info!("for a total of {} rows", results.len());
 
     match write_csv(&results) {
-        Err(e) => error!("Write CSV error: {}", e),
+        Err(e) => {error!("Write CSV error: {}", e); return Err(e) },
         _ => (),
     }
 

@@ -80,11 +80,8 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                     drawdowns.push(d[d.len() - 1]);
                 }
             }
-            // if (returns.len() == 0) | (drawups.len() == 0) | (drawdowns.len() == 0) { continue }
             let sharpe = vec_mean(&returns).unwrap_or(f64::NAN) / vec_std(&returns).unwrap_or(f64::NAN);
             if !sharpe.is_normal() { continue }
-            // let sharpe = vec_sharpe(&returns).unwrap_or(f64::NAN);
-            // if !sharpe.is_normal() { info!("sharpe is weird! {}", sharpe) }
 
             let ann_factor = (252_f64).sqrt();
             drawups.sort_by(|a, b| comp_f64(a,b));
@@ -108,7 +105,6 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
                 max_drawdown: *max_drawdown,
                 n_obs: n_obs,
             });
-            // info!("Push successful at: {}, {}", interval, start_time);
         }
     }
 
