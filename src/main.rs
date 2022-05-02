@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("{} seconds to run,", now.elapsed().as_secs());
     info!("for a total of {} rows", results.len());
 
-    match write_csv(&results) {
+    match write_csv(&results, &FIELD_NAMES, "returns_test.csv") {
         Err(e) => {error!("Write CSV error: {}", e); return Err(e) },
         _ => (),
     }

@@ -55,8 +55,8 @@ pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<
     Ok(v)
 }
 
-use crate::strategy::{StrategyResult, FIELD_NAMES};
-pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
+use crate::strategy::FieldsToStrings;
+pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Result<(), Box<dyn Error>> {
     info!("Writing to csv");
     match v.len() {
         0 => {
@@ -65,8 +65,8 @@ pub fn write_csv(v: &Vec<StrategyResult>) -> Result<(), Box<dyn Error>> {
             Err(Box::new(SimpleError::new(msg)))
         },
         _ => {
-            let mut wtr = csv::Writer::from_path("returns_test.csv")?;
-            wtr.write_record(&FIELD_NAMES)?;
+            let mut wtr = csv::Writer::from_path(loc)?;
+            wtr.write_record(cols)?;
             // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
             for strat in v {
                 wtr.write_record(strat.fields_to_strings())?;

@@ -16,10 +16,15 @@ pub struct StrategyResult {
     pub datetime_data: Vec<Vec<NaiveDateTime>>,
     pub value_data: Vec<Vec<f64>>,
 }
-impl StrategyResult {
-    pub fn fields_to_strings(&self) -> [String; N_FIELDS] {
+
+pub trait FieldsToStrings {
+    fn fields_to_strings(&self) -> Vec<String>;
+}
+
+impl FieldsToStrings for StrategyResult {
+    fn fields_to_strings(&self) -> Vec<String> {
         // Doesn't include datetime or value data yet
-        [self.interval.to_string(), self.start_time.to_string(), self.end_time.to_string(),
+        vec![self.interval.to_string(), self.start_time.to_string(), self.end_time.to_string(),
             self.sharpe.to_string(), self.max_drawup.to_string(), self.max_drawdown.to_string(),
             self.n_obs.to_string()]
     }
