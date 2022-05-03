@@ -2,7 +2,8 @@ use std::cmp::{PartialEq, PartialOrd, Eq};
 use std::convert::From;
 use std::hash::Hash;
 use std::iter::Sum;
-use std::ops::{Add, Div, Mul};
+use std::ops::{Add, Sub, Div, Mul, AddAssign};
+use std::process::Output;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use itertools::Itertools;
 use log::warn;
@@ -52,14 +53,16 @@ pub fn vec_mean<T>(v: &Vec<T>) -> Option<T>
         },
     }
 }
-pub fn vec_variance(v: &Vec<f64>) -> Option<f64> {
+pub fn vec_variance<T>(v: &Vec<T>) -> Option<T>
+    where T: Clone + Copy + From<f32> + Into<f64> + PartialOrd + Add<Output = T> + Div<Output = T>
+    + Sum<T> + Sub<Output = T> + Mul<Output = T> + Div<Output = T> {
     match (vec_mean(v), v.len()) {
         (Some(data_mean), count) if count > 0 => {
             let variance = v.iter().map(|value| {
-                let diff = data_mean - (*value as f64);
+                let diff = data_mean - *value;
 
                 diff * diff
-            }).sum::<f64>() / (count - 1) as f64;
+            }).sum::<T>() / (count as f32 - 1.0).into();
             Some(variance)
         },
         _ => {
@@ -68,10 +71,13 @@ pub fn vec_variance(v: &Vec<f64>) -> Option<f64> {
         }
     }
 }
-pub fn vec_std(v: &Vec<f64>) -> Option<f64> {
+pub fn vec_std<T>(v: &Vec<T>) -> Option<T>
+    where T: Clone + Copy + From<f32> + Into<f64> + PartialOrd + Add<Output = T> + Div<Output = T>
+    + Sum<T> + Sub<Output = T> + Mul<Output = T> + Div<Output = T> {
     match (vec_variance(v), v.len()) {
         (Some(variance), count) if count > 0 => {
-            let std = variance.sqrt();
+            let std: f64 = variance.into();
+            let std: T = (std.sqrt() as f32).into();
             Some(std)
         },
         _ => {
@@ -89,20 +95,20 @@ pub fn vec_diff(v: &Vec<f64>, diff: usize) -> Option<Vec<f64>> {
     let d:Vec<f64> = (0..(v.len()-diff)).map(|i| &v[i+diff] - &v[i]).collect();
     Some(d)
 }
-pub fn vec_cumsum(v: &Vec<f64>) -> Option<Vec<f64>> {
+pub fn vec_cumsum<T>(v: &Vec<T>) -> Option<Vec<T>> where T: Add<Output = T> + AddAssign + Into<f64> + From<f64> + Copy {
     let count = v.len();
     if count == 1 { return None }
     let mut u = v.clone();
     u.iter_mut().fold(0.0, |acc, x| {
-        *x += acc;
-        *x
+        *x += acc.into();
+        (*x).into()
     });
     Some(u)
 }
 pub fn vec_add_scalar<T: Copy + Add<Output=T>>(v: &Vec<T>, scalar: T) -> Vec<T> {
     v.into_iter().map(|&x| x + scalar).collect_vec()
 }
-pub fn vec_sub_scalar<T: Copy + std::ops::Sub<Output=T>>(v: &Vec<T>, scalar: T) -> Vec<T> {
+pub fn vec_sub_scalar<T: Copy + Sub<Output=T>>(v: &Vec<T>, scalar: T) -> Vec<T> {
     v.into_iter().map(|&x| x - scalar).collect_vec()
 }
 pub fn vec_dates(v: &Vec<NaiveDateTime>) -> Vec<NaiveDate> {
@@ -111,13 +117,13 @@ pub fn vec_dates(v: &Vec<NaiveDateTime>) -> Vec<NaiveDate> {
 pub fn vec_times(v: &Vec<NaiveDateTime>) -> Vec<NaiveTime> {
     v.iter().map(|x| x.time()).collect()
 }
-pub fn vec_rmse<T>(v: &Vec<T>) -> Option<f64>
+pub fn vec_rmse<T>(v: &Vec<T>) -> Option<f32>
     where T: Clone + Copy + From<f32> + Into<f64> + PartialOrd + Add<Output = T> + Div<Output = T> + Sum<T>
                             + Mul<Output = T>{
     let r: Vec<T> = v.iter().map(|&x| x*x).collect();
     // match vec_mean(&r.iter().map(|&x| x as f64).collect()) {
     match vec_mean(&r) {
-        Some(mean) => Some(mean.into().sqrt()),
+        Some(mean) => Some(mean.into().sqrt() as f32),
         None => None,
     }
 }
