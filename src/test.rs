@@ -11,13 +11,10 @@ use log4rs;
 #[test]
 fn general_test() {
 
-    log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
-
-    let v = vec![5.2];
-    let u:Vec<f64> = vec![];
-
-    vec_diff(&v, 1);
-    vec_diff(&u, 1);
-
-
+    // log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
+    let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
+    let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
+    for (event_name, _) in event_data.iter() {
+        println!("{}", event_name);
+    }
 }

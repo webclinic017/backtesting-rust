@@ -151,3 +151,13 @@ pub fn comp_f64(a: &f64, b: &f64) -> Ordering {
     }
     Ordering::Equal
 }
+
+pub fn datestr_to_int(year_month: &str) -> i32 {
+    let s: Vec<&str> = year_month.split("-").collect();
+    s[0].parse::<i32>().unwrap()*100 + s[1].parse::<i32>().unwrap()
+}
+
+pub fn get_clusters(file_name: &str) -> FxHashMap<i32, i32> {
+    let raw: Vec<(String, i32)> = read_csv(file_name).unwrap().into_iter().collect();
+    raw.iter().map(|x| (datestr_to_int(x.0.as_str()), x.1)).collect()
+}

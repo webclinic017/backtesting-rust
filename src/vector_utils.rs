@@ -47,7 +47,7 @@ pub fn vec_mean<T>(v: &Vec<T>) -> Option<T>
     match count {
         positive if positive > 0.0 => Some(sum/count.into()),
         _ => {
-            warn!("vec_mean: vector has length zero");
+            // warn!("vec_mean: vector has length zero");
             None
         },
     }
@@ -65,7 +65,7 @@ pub fn vec_variance<T>(v: &Vec<T>) -> Option<T>
             Some(variance)
         },
         _ => {
-            warn!("vec_variance: vector has length zero");
+            // warn!("vec_variance: vector has length zero");
             None
         }
     }
@@ -80,7 +80,7 @@ pub fn vec_std<T>(v: &Vec<T>) -> Option<T>
             Some(std)
         },
         _ => {
-            warn!("vec_std: vector has length zero");
+            // warn!("vec_std: vector has length zero");
             None
         },
     }
@@ -88,7 +88,7 @@ pub fn vec_std<T>(v: &Vec<T>) -> Option<T>
 pub fn vec_diff(v: &Vec<f64>, diff: usize) -> Option<Vec<f64>> {
     let count = v.len();
     if count <= diff {
-        warn!("vec_diff: vector has length {}, which is not greater than diff {}", count, diff);
+        // warn!("vec_diff: vector has length {}, which is not greater than diff {}", count, diff);
         return None
     }
     let d:Vec<f64> = (0..(v.len()-diff)).map(|i| &v[i+diff] - &v[i]).collect();
