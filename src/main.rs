@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::error::Error;
 use log::{error, info, warn};
 use log4rs;
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use backtesting::strategy::StrategyResult;
 use backtesting::utils::*;
 use backtesting::events::*;
@@ -17,72 +17,66 @@ use backtesting::strategy::*;
 fn main() -> Result<(), Box<dyn Error>> {
     // Set up logging
     log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
+    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
+    let data: Vec<Row> = read_csv(file_name).unwrap();
 
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
     // let event_names: Vec<String> = event_data.keys().into_iter().collect();
-    for (event_name, _) in event_data.iter() {
-        for cluster in 0..10 {
-            info!("Event name {}, cluster {}", event_name, cluster);
-            match main_routine(cluster, event_name.as_str(), &event_data) {
-                Ok(()) => (),
-                Err(e) => { error!("{}", e); continue }
-            };
+
+    let output_path = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\output\\full";
+    for (event_name, events) in event_data {
+        println!("Running event: {}", event_name);
+        let now = Instant::now();
+        match main_routine(&data, event_name.as_str(), &events, output_path) {
+            Ok(()) => println!("Ran {} in {}s", event_name, now.elapsed().as_secs()),
+            Err(e) => { error!("{} {}", event_name, e); continue }
         }
     }
-
     Ok(())
 }
 
-fn main_routine(cluster: i32, event_name: &str, events: &FxHashMap<String, Vec<NaiveDateTime>>) -> Result<(), Box<dyn Error>> {
+fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, output_path: &str) -> Result<(), Box<dyn Error>> {
 
     // Initialize Params
     let resolution: u64 = 1; // minutes
     let interval_rng: Vec<u64> = (2..=60*12).filter(|x| x % resolution == 0).collect();
-    let start_time_rng: Vec<NaiveTime> = time_range((8,0,0), (10,30,0), resolution);
+    let start_time_rng: Vec<NaiveTime> = time_range((6,0,0), (16,55,0), resolution);
     info!("Inveral params (mins): {} to {}, by step {}", interval_rng[0], interval_rng[interval_rng.len()-1], resolution);
     info!("Start time params: {} to {}, with resolution {}", start_time_rng[0], start_time_rng[start_time_rng.len()-1], resolution);
 
     let total_runs: u64 = (interval_rng.len()*start_time_rng.len()) as u64;
     info!("Running {} times", total_runs);
 
-    // Read get events data
-    // let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
-    // let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
-    // let events: FxHashMap<&str, Vec<NaiveDateTime>> = ["Inflation Rate YoY", "Non Farm Payrolls"].iter()
-    //     .map(|&e| (e, event_data.get(e).unwrap().to_owned()))
-    //     .collect();
 
     // Read cluster data
-    let cluster_loc = "C:\\Users\\mbroo\\PycharmProjects\\detrending\\cluster_data.csv";
+    // let cluster_loc = "C:\\Users\\mbroo\\PycharmProjects\\detrending\\cluster_data.csv";
     // let cluster = 4;
-    let clusters: FxHashMap<i32, i32> = get_clusters(cluster_loc);//.into_iter().filter(|(k,v)| v==&cluster).collect();
-    let cluster_dates: Vec<i32> = clusters.iter()
-        .filter(|(_,&v)| v==cluster)
-        .map(|(&k, _)| k )
+    // let clusters: FxHashMap<i32, i32> = get_clusters(cluster_loc);//.into_iter().filter(|(k,v)| v==&cluster).collect();
+    // let cluster_dates: Vec<i32> = clusters.iter()
+    //     .filter(|(_,&v)| v==cluster)
+    //     .map(|(&k, _)| k )
+    //     .collect();
+
+    let mut v: Vec<&Row> = data
+        .iter()
+        // .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap())
+        .filter(|&x| x.datetime().time() >= start_time_rng[0])
+        // .filter(|&x| cluster_dates.contains(&datestr_to_int(x.datetime_str.as_str())))
         .collect();
 
-    // Read timeseries CSV
-    // let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min_tail.csv";
-    let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
-    let v: Vec<Row> = read_csv(file_name).unwrap()
-        .into_iter()
-        .filter(|x: &Row| x.datetime() >= NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap())
-        .filter(|x| x.datetime().time() >= start_time_rng[0])
-        .filter(|x| cluster_dates.contains(&datestr_to_int(x.datetime_str.as_str())))
-        .collect();
-
-    // v = filter_timeseries_by_events(v,
-    //                                 &events.values().flatten().collect::<Vec<_>>().iter().map(|x| x.date()).collect(),
-    //                                 10, 1);
-    // info!("{} rows after filters", v.len());
+    let event_dates: Vec<NaiveDate> = events.iter().map(|dt| dt.date()).collect();
+    v = filter_timeseries_by_events(v,
+                                    &event_dates,
+                                    1, 1);
+    info!("{} rows after filters", v.len());
 
     let datetimes: Vec<NaiveDateTime> = v.iter().map(|x| x.datetime()).collect();
     let values: Vec<f64> = v.iter().map(|x| x.close).collect();
     // let event_name = "Inflation Rate YoY";
 
     let mut context_conditions: Vec<Vec<bool>> = Vec::new();
-    context_conditions.push(day_of_strat(&datetimes, &vec_dates(events.get(event_name).unwrap())));
+    context_conditions.push(day_of_strat(&datetimes, &vec_dates(events)));
     // context_conditions.push(days_offset_strat(&datetimes, event_dates.get("Non Farm Payrolls").unwrap(),
     //                                           -8, -1, true));
 
@@ -114,7 +108,7 @@ fn main_routine(cluster: i32, event_name: &str, events: &FxHashMap<String, Vec<N
             let counter = Arc::clone(&counter);
 
             let handle = thread::Builder::new().name(i.to_string()).spawn(move || {
-                run_analysis(datetimes_, values_, &interval_rng_i_, &start_time_rng_,
+                run_analysis(&datetimes_, &values_, &interval_rng_i_, &start_time_rng_,
                                        counter, total_runs, &context_conditions_).unwrap_or_default()
             });
             handles.push(handle.unwrap());
@@ -124,14 +118,14 @@ fn main_routine(cluster: i32, event_name: &str, events: &FxHashMap<String, Vec<N
     if is_singlethreaded {
         // Single-threaded for profiling
         info!("Running single-threaded");
-        results = run_analysis(datetimes, values, &interval_rng, &start_time_rng,
+        results = run_analysis(&datetimes, &values, &interval_rng, &start_time_rng,
                                Arc::new(Mutex::new(0)), total_runs, &context_conditions).unwrap();
     }
     info!("{} seconds to run,", now.elapsed().as_secs());
     info!("for a total of {} rows", results.len());
 
-    fs::create_dir(format!("C:/Users/mbroo/IdeaProjects/backtesting/output/cluster_{}/", cluster));
-    match write_csv(&results, &FIELD_NAMES, format!("./output/cluster_{}/{}_returns.csv", cluster, event_name.replace(" ", "_")).as_str()) {
+    fs::create_dir(output_path);
+    match write_csv(&results, &FIELD_NAMES, format!("{}/{}_returns.csv", output_path, event_name.replace(" ", "_")).as_str()) {
         Err(e) => {error!("Write CSV error: {}", e); return Err(e) },
         _ => (),
     }

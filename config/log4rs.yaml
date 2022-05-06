@@ -15,7 +15,6 @@ root:
   level: info
   appenders:
     - file
-    - stdout
 loggers:
   app::backend::db:
     level: info
@@ -23,5 +22,4 @@ loggers:
     level: info
     appenders:
       - file
-      - stdout
     additive: false

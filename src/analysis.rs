@@ -10,7 +10,7 @@ pub use crate::utils::*;
 pub use crate::vector_utils::*;
 
 
-pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
+pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
                     interval_rng: &Vec<u64>, start_time_rng: &Vec<NaiveTime>,
                     progress_counter: Arc<Mutex<u64>>, total_runs: u64, context_conditions: &Vec<Vec<bool>>)
                     -> Result<Vec<StrategyResult>, Box<dyn Error>> {
@@ -33,7 +33,7 @@ pub fn run_analysis(datetimes: Vec<NaiveDateTime>, values: Vec<f64>,
             {
                 let mut p = progress_counter.lock().unwrap();
                 *p += 1;
-                if *p % 100 == 0 {
+                if *p % 500 == 0 {
                     let elapsed = now.elapsed().as_secs_f32();
                     let pct = (*p as f32)/(total_runs as f32);
                     info!("Iteration {} ({:.1}%) out of {} on thread {}, {:.1}s elapsed  (total {:.0}s expected)",

@@ -15,7 +15,7 @@ use std::cmp::Ordering;
 use simple_error::SimpleError;
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Row {
     pub datetime_str: String,
     pub open: f64,
@@ -67,7 +67,6 @@ pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Re
         _ => {
             let mut wtr = csv::Writer::from_path(loc)?;
             wtr.write_record(cols)?;
-            // for ((i,st, e), (sharpe, drawups, drawdowns, n_obs)) in h {
             for strat in v {
                 wtr.write_record(strat.fields_to_strings())?;
             }
@@ -78,14 +77,15 @@ pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Re
     }
 }
 
-pub fn filter_timeseries_by_events(datetimes: Vec<Row>, event_dates: &Vec<NaiveDate>, back_threshold_bdays: u32, fwd_threshold_bdays: u32) -> Vec<Row> {
+pub fn filter_timeseries_by_events<'a>(datetimes: Vec<&'a Row>, event_dates: &'a Vec<NaiveDate>, back_threshold_bdays: u32, fwd_threshold_bdays: u32)
+    -> Vec<&'a Row> {
     let filter_dates:Vec<NaiveDate> = (-(back_threshold_bdays as i32)..=(fwd_threshold_bdays as i32)).map(|i| {
         event_dates.iter().map(move |&x| BUS_DAY_CAL.advance_bdays(x, i))
     })
         .flatten()
         .collect();
 
-    datetimes.into_iter().filter(|x| filter_dates.contains(&x.datetime().date())).collect()
+    datetimes.into_iter().filter(|&x| filter_dates.contains(&x.datetime().date())).collect()
 }
 
 pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime> {
