@@ -22,9 +22,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let events_loc = "C:\\Users\\mbroo\\PycharmProjects\\backtesting\\calendar-event-list-new.csv";
     let event_data: FxHashMap<String, Vec<NaiveDateTime>> = get_event_calendar(events_loc);
-    // let event_names: Vec<String> = event_data.keys().into_iter().collect();
+    // let event_data = event_data.iter().filter(|(s,_)| s==&&"Retail Sales MoM".to_owned()); // test case
 
     let output_path = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\output\\full";
+    let start = Instant::now();
     for (event_name, events) in event_data {
         println!("Running event: {}", event_name);
         let now = Instant::now();
@@ -33,6 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Err(e) => { error!("{} {}", event_name, e); continue }
         }
     }
+    info!("Finished running main in {:.1} minutes", start.elapsed().as_secs_f32()/60.);
     Ok(())
 }
 
@@ -89,7 +91,7 @@ fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, 
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
     if !is_singlethreaded {
-        let n_threads = 8;
+        let n_threads = 12;
         info!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
         for &i in interval_rng.iter() {

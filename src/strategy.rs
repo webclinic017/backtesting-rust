@@ -13,8 +13,8 @@ pub struct StrategyResult {
     pub max_drawup: f64,
     pub max_drawdown: f64,
     pub n_obs: usize,
-    pub datetime_data: Vec<Vec<NaiveDateTime>>,
-    pub value_data: Vec<Vec<f64>>,
+    // pub datetime_data: Vec<Vec<NaiveDateTime>>,
+    // pub value_data: Vec<Vec<f64>>,
 }
 
 pub trait FieldsToStrings {
@@ -39,8 +39,8 @@ impl Default for StrategyResult {
             max_drawup: f64::NAN,
             max_drawdown: f64::NAN,
             n_obs: 0,
-            datetime_data: Vec::new(),
-            value_data: Vec::new(),
+            // datetime_data: Vec::new(),
+            // value_data: Vec::new(),
         }
     }
 }

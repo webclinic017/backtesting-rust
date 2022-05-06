@@ -62,13 +62,13 @@ pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
             let mut returns: Vec<f64> = Vec::new();
             let mut drawups: Vec<f64> = Vec::new();
             let mut drawdowns: Vec<f64> = Vec::new();
-            let mut datetime_data: Vec<Vec<NaiveDateTime>> = Vec::new();
-            let mut value_data: Vec<Vec<f64>> = Vec::new();
+            // let mut datetime_data: Vec<Vec<NaiveDateTime>> = Vec::new();
+            // let mut value_data: Vec<Vec<f64>> = Vec::new();
             let mut n_obs= 0_usize;
             for i in vec_unique(&r).into_iter() {
                 if i == &0 { continue; } // 0 means no observation
                 let ix = vec_where_eq(&r, i);
-                let t = datetimes[ix[0]..=ix[ix.len()-1]].to_vec();
+                // let t = datetimes[ix[0]..=ix[ix.len()-1]].to_vec();
                 let v:Vec<f64> = values[ix[0]..=ix[ix.len()-1]].to_vec();
 
                 if v.len() > 2 {
@@ -79,8 +79,8 @@ pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
                     returns.push(v[v.len()-1] - v[0]);
                     drawups.push(d[0]);
                     drawdowns.push(d[d.len() - 1]);
-                    datetime_data.push(t);
-                    value_data.push(v);
+                    // datetime_data.push(t);
+                    // value_data.push(v);
                 }
             }
             let sharpe = vec_mean(&returns).unwrap_or(f64::NAN) / vec_std(&returns).unwrap_or(f64::NAN);
@@ -107,8 +107,8 @@ pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
                 max_drawup: *max_drawup,
                 max_drawdown: *max_drawdown,
                 n_obs,
-                datetime_data,
-                value_data,
+                // datetime_data,
+                // value_data,
             });
         }
     }
