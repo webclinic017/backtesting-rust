@@ -65,13 +65,15 @@ pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
             // let mut datetime_data: Vec<Vec<NaiveDateTime>> = Vec::new();
             // let mut value_data: Vec<Vec<f64>> = Vec::new();
             let mut n_obs= 0_usize;
-            for i in vec_unique(&r).into_iter() {
+            for i in vec_unique(&r).into_iter()
+            {
                 if i == &0 { continue; } // 0 means no observation
                 let ix = vec_where_eq(&r, i);
                 // let t = datetimes[ix[0]..=ix[ix.len()-1]].to_vec();
                 let v:Vec<f64> = values[ix[0]..=ix[ix.len()-1]].to_vec();
 
-                if v.len() > 2 {
+                if v.len() > 2
+                {
                     n_obs += 1;
                     let mut d = vec_diff(&v, 1).unwrap();
                     d = vec_cumsum(&d).unwrap();
@@ -90,30 +92,35 @@ pub fn run_analysis(datetimes: &Vec<NaiveDateTime>, values: &Vec<f64>,
             drawups.sort_by(|a, b| comp_f64(a,b));
             drawdowns.sort_by(|a, b| comp_f64(a,b));
 
-            let max_drawup = match drawups.get(1) {
+            let max_drawup = match drawups.get(1)
+            {
                 Some(x) => x,
                 None => continue
             };
-            let max_drawdown = match drawdowns.get(drawdowns.len() - 1) {
+            let max_drawdown = match drawdowns.get(drawdowns.len() - 1)
+            {
                 Some(x) => x,
                 None => continue
             };
 
-            ret.push(StrategyResult {
-                interval: *interval,
-                start_time: *start_time,
-                end_time: end_time,
-                sharpe: sharpe*ann_factor,
-                max_drawup: *max_drawup,
-                max_drawdown: *max_drawdown,
-                n_obs,
-                // datetime_data,
-                // value_data,
-            });
+            ret.push(StrategyResult
+                {
+                    interval: *interval,
+                    start_time: *start_time,
+                    end_time: end_time,
+                    sharpe: sharpe*ann_factor,
+                    max_drawup: *max_drawup,
+                    max_drawdown: *max_drawdown,
+                    n_obs,
+                    // datetime_data,
+                    // value_data,
+                }
+            );
         }
     }
 
-    match ret.len() {
+    match ret.len()
+    {
         0 => {
             let msg = format!("Returns on thread {} length was zero", thread_name);
             error!("{}", msg);

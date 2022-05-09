@@ -17,21 +17,27 @@ pub struct StrategyResult {
     // pub value_data: Vec<Vec<f64>>,
 }
 
-pub trait FieldsToStrings {
+pub trait FieldsToStrings
+{
     fn fields_to_strings(&self) -> Vec<String>;
 }
 
-impl FieldsToStrings for StrategyResult {
-    fn fields_to_strings(&self) -> Vec<String> {
+impl FieldsToStrings for StrategyResult
+{
+    fn fields_to_strings(&self) -> Vec<String>
+    {
         // Doesn't include datetime or value data yet
         vec![self.interval.to_string(), self.start_time.to_string(), self.end_time.to_string(),
             self.sharpe.to_string(), self.max_drawup.to_string(), self.max_drawdown.to_string(),
             self.n_obs.to_string()]
     }
 }
-impl Default for StrategyResult {
-    fn default() -> Self {
-        Self {
+impl Default for StrategyResult
+{
+    fn default() -> Self
+    {
+        Self
+        {
             interval: 0,
             start_time: NaiveTime::from_hms(1,0,0),
             end_time: NaiveTime::from_hms(1,0,0),
@@ -48,8 +54,10 @@ impl Default for StrategyResult {
 pub trait ContextCondition {}
 
 pub struct DayOfCondition;
-impl DayOfCondition {
-    pub fn run(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool> {
+impl DayOfCondition
+{
+    pub fn run(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool>
+    {
         datetimes.iter()
             .map(|x| event_dates.contains(&x.date()))
             .collect()
@@ -58,7 +66,8 @@ impl DayOfCondition {
 impl ContextCondition for DayOfCondition {}
 
 pub struct DayOffsetCondition;
-impl DayOffsetCondition {
+impl DayOffsetCondition
+{
     pub fn run(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
                early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool> {
         assert!(early_offset_days<=late_offset_days);
@@ -78,14 +87,16 @@ impl DayOffsetCondition {
 }
 impl ContextCondition for DayOffsetCondition {}
 
-pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool> {
+pub fn day_of_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>) -> Vec<bool>
+{
     datetimes.iter()
         .map(|x| event_dates.contains(&x.date()))
         .collect()
 }
 
 pub fn days_offset_strat(datetimes: &Vec<NaiveDateTime>, event_dates: &Vec<NaiveDate>,
-                         early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool> {
+                         early_offset_days: i64, late_offset_days: i64, is_bus_days: bool) -> Vec<bool>
+{
     assert!(early_offset_days<=late_offset_days);
     let mut event_date_ranges = event_dates.clone();
     for &dt in event_dates {

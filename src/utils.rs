@@ -16,7 +16,8 @@ use simple_error::SimpleError;
 
 
 #[derive(Deserialize, Clone)]
-pub struct Row {
+pub struct Row
+{
     pub datetime_str: String,
     pub open: f64,
     pub high: f64,
@@ -24,7 +25,8 @@ pub struct Row {
     pub close: f64,
     pub volume: f64,
 }
-impl Row {
+impl Row
+{
     pub fn datetime(&self) -> NaiveDateTime {
         NaiveDateTime::parse_from_str(&self.datetime_str,
                                       "%Y-%m-%d %H:%M:%S")
@@ -56,7 +58,8 @@ pub fn read_csv<T: de::DeserializeOwned>(file_name: &str) -> Result<Vec<T>, Box<
 }
 
 use crate::strategy::FieldsToStrings;
-pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Result<(), Box<dyn Error>> {
+pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Result<(), Box<dyn Error>>
+{
     info!("Writing to csv");
     match v.len() {
         0 => {
@@ -77,8 +80,10 @@ pub fn write_csv<T: FieldsToStrings>(v: &Vec<T>, cols: &[&str], loc: &str) -> Re
     }
 }
 
-pub fn filter_timeseries_by_events<'a>(datetimes: Vec<&'a Row>, event_dates: &'a Vec<NaiveDate>, back_threshold_bdays: u32, fwd_threshold_bdays: u32)
-    -> Vec<&'a Row> {
+pub fn filter_timeseries_by_events<'a>(datetimes: Vec<&'a Row>, event_dates: &'a Vec<NaiveDate>,
+                                       back_threshold_bdays: u32, fwd_threshold_bdays: u32)
+    -> Vec<&'a Row>
+{
     let filter_dates:Vec<NaiveDate> = (-(back_threshold_bdays as i32)..=(fwd_threshold_bdays as i32)).map(|i| {
         event_dates.iter().map(move |&x| BUS_DAY_CAL.advance_bdays(x, i))
     })
@@ -88,7 +93,8 @@ pub fn filter_timeseries_by_events<'a>(datetimes: Vec<&'a Row>, event_dates: &'a
     datetimes.into_iter().filter(|&x| filter_dates.contains(&x.datetime().date())).collect()
 }
 
-pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime> {
+pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_mins: u64) -> Vec<NaiveTime>
+{
     let (start_hr, start_min, start_sec) = start_time;
     let (end_hr, end_min, end_sec) = end_time;
 
@@ -97,22 +103,25 @@ pub fn time_range(start_time: (u32, u32, u32), end_time: (u32, u32, u32), step_m
 
     let mut v: Vec<NaiveTime> = vec![start_time_nt];
     let mut i: u64 = 0;
-    loop {
+    loop
+    {
         let t = start_time_nt + chrono::Duration::from_std(Duration::from_secs(step_mins*i*60)).unwrap();
         if &t<=&end_time_nt {
             v.push(t);
         }
-        else {break}
+        else { break }
         i += 1;
     }
     v
 }
 
-pub fn add_time(time: &NaiveTime, secs: u64) -> NaiveTime {
+pub fn add_time(time: &NaiveTime, secs: u64) -> NaiveTime
+{
     time.clone() + chrono::Duration::from_std(Duration::from_secs(secs)).unwrap()
 }
 
-pub fn fill_ids(r: &Vec<i32>) -> Vec<usize> {
+pub fn fill_ids(r: &Vec<i32>) -> Vec<usize>
+{
     // Check validity
     let unique_check = vec_unique(r);
     if unique_check.len() != 3 {
@@ -143,7 +152,8 @@ pub fn fill_ids(r: &Vec<i32>) -> Vec<usize> {
     v
 }
 
-pub fn comp_f64(a: &f64, b: &f64) -> Ordering {
+pub fn comp_f64(a: &f64, b: &f64) -> Ordering
+{
     if a < b {
         return Ordering::Less;
     } else if a > b {
@@ -152,12 +162,14 @@ pub fn comp_f64(a: &f64, b: &f64) -> Ordering {
     Ordering::Equal
 }
 
-pub fn datestr_to_int(year_month: &str) -> i32 {
+pub fn datestr_to_int(year_month: &str) -> i32
+{
     let s: Vec<&str> = year_month.split("-").collect();
     s[0].parse::<i32>().unwrap()*100 + s[1].parse::<i32>().unwrap()
 }
 
-pub fn get_clusters(file_name: &str) -> FxHashMap<i32, i32> {
+pub fn get_clusters(file_name: &str) -> FxHashMap<i32, i32>
+{
     let raw: Vec<(String, i32)> = read_csv(file_name).unwrap().into_iter().collect();
     raw.iter().map(|x| (datestr_to_int(x.0.as_str()), x.1)).collect()
 }

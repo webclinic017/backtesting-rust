@@ -14,7 +14,8 @@ use rustc_hash::FxHashMap;
 use backtesting::strategy::*;
 
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>>
+{
     // Set up logging
     log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
     let file_name = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\ZN_continuous_adjusted_1min.csv";
@@ -26,10 +27,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let output_path = "C:\\Users\\mbroo\\IdeaProjects\\backtesting\\output\\full";
     let start = Instant::now();
-    for (event_name, events) in event_data {
+    for (event_name, events) in event_data
+    {
         println!("Running event: {}", event_name);
         let now = Instant::now();
-        match main_routine(&data, event_name.as_str(), &events, output_path) {
+        match main_routine(&data, event_name.as_str(), &events, output_path)
+        {
             Ok(()) => println!("Ran {} in {}s", event_name, now.elapsed().as_secs()),
             Err(e) => { error!("{} {}", event_name, e); continue }
         }
@@ -38,8 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, output_path: &str) -> Result<(), Box<dyn Error>> {
-
+fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, output_path: &str) -> Result<(), Box<dyn Error>>
+{
     // Initialize Params
     let resolution: u64 = 1; // minutes
     let interval_rng: Vec<u64> = (2..=60*12).filter(|x| x % resolution == 0).collect();
@@ -83,25 +86,29 @@ fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, 
     //                                           -8, -1, true));
 
     info!("Starting analysis");
-    let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED") {
+    let is_singlethreaded: bool = match env::var("IS_SINGLETHREADED")
+    {
         Ok(x) => {if x=="TRUE" { true } else { false }},
         Err(e) => { error!("{}", e); false },
     };
 
     let now = Instant::now();
     let mut results: Vec<StrategyResult> = Vec::new();
-    if !is_singlethreaded {
+    if !is_singlethreaded
+    {
         let n_threads = 12;
         info!("Running multi({})-threaded", n_threads);
         let mut interval_rng_: Vec<Vec<u64>> = (0..n_threads).map(|_| Vec::new() ).collect();
-        for &i in interval_rng.iter() {
+        for &i in interval_rng.iter()
+        {
             interval_rng_[(i % n_threads as u64) as usize].push(i)
         }
 
         let counter = Arc::new(Mutex::new(0_u64));
         let mut handles = vec![];
 
-        for i in 0..interval_rng_.len() {
+        for i in 0..interval_rng_.len()
+        {
             let datetimes_ = datetimes.clone();
             let values_ = values.clone();
             let start_time_rng_: Vec<NaiveTime> = start_time_rng.clone();
@@ -109,15 +116,18 @@ fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, 
             let context_conditions_ = context_conditions.clone();
             let counter = Arc::clone(&counter);
 
-            let handle = thread::Builder::new().name(i.to_string()).spawn(move || {
+            let handle = thread::Builder::new().name(i.to_string()).spawn(move ||
+                {
                 run_analysis(&datetimes_, &values_, &interval_rng_i_, &start_time_rng_,
-                                       counter, total_runs, &context_conditions_).unwrap_or_default()
-            });
+                             counter, total_runs, &context_conditions_).unwrap_or_default()
+                }
+            );
             handles.push(handle.unwrap());
         }
         results = handles.into_iter().map(|h| h.join().unwrap()).flatten().collect();
     }
-    if is_singlethreaded {
+    else if is_singlethreaded
+    {
         // Single-threaded for profiling
         info!("Running single-threaded");
         results = run_analysis(&datetimes, &values, &interval_rng, &start_time_rng,
@@ -126,8 +136,14 @@ fn main_routine(data: &Vec<Row>, event_name: &str, events: &Vec<NaiveDateTime>, 
     info!("{} seconds to run,", now.elapsed().as_secs());
     info!("for a total of {} rows", results.len());
 
-    fs::create_dir(output_path);
-    match write_csv(&results, &FIELD_NAMES, format!("{}/{}_returns.csv", output_path, event_name.replace(" ", "_")).as_str()) {
+    match fs::create_dir(output_path)
+    {
+        Ok(()) => (),
+        Err(e) => error!("{e}"),
+    }
+
+    match write_csv(&results, &FIELD_NAMES, format!("{}/{}_returns.csv", output_path, event_name.replace(" ", "_")).as_str())
+    {
         Err(e) => {error!("Write CSV error: {}", e); return Err(e) },
         _ => (),
     }
