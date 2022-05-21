@@ -1,0 +1,27 @@
+# log4rs.yaml
+
+refresh_rate: 1 seconds
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} -- {m}{n}"
+  file:
+    kind: file
+    path: "log/log.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} -- {m}{n}"
+root:
+  level: info
+  appenders:
+    - file
+    - stdout
+loggers:
+  app::backend::db:
+    level: info
+  app::requests:
+    level: info
+    appenders:
+      - stdout
+      - file
+    additive: false
