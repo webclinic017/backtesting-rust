@@ -39,7 +39,7 @@ fn sum_datain_slice(i_start: u32, i_end: u32) -> f32 {
 [[stage(compute), workgroup_size(2)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     let global_x_max: u32 = 50000u;
-    // v_out.data[global_id.x].f1 = sum_datain_slice(0u, 4u);
     let i = global_id.x + ((global_id.y - 1u) * global_x_max);
+
     v_out.data[i].f1 = f32(i);
 }

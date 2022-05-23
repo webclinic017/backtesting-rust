@@ -24,7 +24,7 @@ struct DataOut {
 fn main() -> Result<(), String>{
     let mut rng = thread_rng();
     let data_in: Vec<DataIn> = (0..1_000_000).map(|_| DataIn {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
-    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 173_078];
+    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 75];
 
     let mut cs_model = pollster::block_on(ComputeModel::new());
     cs_model.initialize_buffers(&data_in, &data_out_prealloc);
