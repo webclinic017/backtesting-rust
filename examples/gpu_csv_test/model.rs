@@ -7,12 +7,11 @@ use std::time::Instant;
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct DataIn {
-    _f1: f32,
-    _f2: f32,
+    _value: f32,
 }
 impl DataIn {
-    pub fn new(f1: f32, f2: f32) -> Self {
-        Self { _f1: f1, _f2: f2 }
+    pub fn new(v: f32) -> Self {
+        Self { _value: v }
     }
 }
 
