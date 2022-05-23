@@ -1,21 +1,26 @@
-struct Coupling {
+struct DataIn {
     f1: f32;
     f2: f32;
 };
 
-struct DataIn {
-    data: array<vec2<f32>>;
+struct DataInArray {
+    data: array<DataIn>;
 };
 
 struct DataOut {
-    data: array<f32>;
+    f1: f32;
+};
+
+
+struct DataOutArray {
+    data: array<DataOut>;
 };
 
 [[group(0), binding(0)]]
-var<storage, read_write> v_in: DataIn;
+var<storage, read_write> v_in: DataInArray;
 
 [[group(0), binding(1)]]
-var<storage, read_write> v_out: DataOut;
+var<storage, read_write> v_out: DataOutArray;
 
 [[stage(compute), workgroup_size(1)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
@@ -28,10 +33,10 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
             break;
         }
 
-        s = (s + v_in.data[i].x) * f32(global_id.x);
+        s = (s + v_in.data[i].f1) * f32(global_id.x);
         i = i + 1u;
     }
 
-    v_out.data[global_id.x] = s;
+    v_out.data[global_id.x].f1 = s;
 
 }

@@ -10,19 +10,24 @@ use std::time::Instant;
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
-struct DataStruct {
+struct DataIn {
     _f1: f32,
     _f2: f32,
 }
 
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+struct DataOut {
+    _f1: f32,
+}
+
 fn main() -> Result<(), String>{
     let mut rng = thread_rng();
-    // let numbers: Vec<f32> = (0..1_000).map(|_| rng.gen::<f32>()*100.0).collect();
-    let numbers: Vec<DataStruct> = (0..1_000).map(|_| DataStruct {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
-    let output_length = 5;
+    let data_in: Vec<DataIn> = (0..1_000).map(|_| DataIn {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
+    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 5];
 
     let mut cs_model = pollster::block_on(ComputeModel::new());
-    cs_model.initialize_buffers(&numbers, output_length);
+    cs_model.initialize_buffers(&data_in, &data_out_prealloc);
     cs_model.initialize_pipeline()?;
 
     pollster::block_on(run(&cs_model));

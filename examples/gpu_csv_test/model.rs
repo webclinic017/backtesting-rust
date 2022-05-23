@@ -96,21 +96,23 @@ impl ComputeModel {
         }
     }
 
-    pub fn initialize_buffers<T>(&mut self, numbers: &[T], output_length: usize) where T: Pod + Zeroable {
+    pub fn initialize_buffers<T, U>(&mut self, data_in: &[T], data_out_prealloc: &[U])
+        where T: Pod + Zeroable, U: Pod + Zeroable {
         self.storage_buffer = Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Storage Buffer"),
-            contents: bytemuck::cast_slice(numbers),
+            contents: bytemuck::cast_slice(data_in),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
         }));
 
-        let ouput_buffer_prealloc: Vec<f32> = vec![f32::NAN; output_length];
-        self.output_buffer_length = Some(output_length);
+        // let ouput_buffer_prealloc: Vec<f32> = vec![f32::NAN; output_length];
+        // self.output_buffer_length = Some(output_length);
+        self.output_buffer_length = Some(data_out_prealloc.len());
 
         self.output_buffer = Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Output Buffer"),
-            contents: bytemuck::cast_slice(ouput_buffer_prealloc.as_slice()),
+            contents: bytemuck::cast_slice(data_out_prealloc),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
