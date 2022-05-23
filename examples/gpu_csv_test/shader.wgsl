@@ -8,7 +8,9 @@ struct DataInArray {
 };
 
 struct DataOut {
-    f1: f32;
+    i_start: u32;
+    interval: u32;
+    mean: f32;
 };
 
 
@@ -41,5 +43,5 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     let global_x_max: u32 = 50000u;
     let i = global_id.x + ((global_id.y - 1u) * global_x_max);
 
-    v_out.data[i].f1 = f32(i);
+    v_out.data[i].mean = f32(i);
 }

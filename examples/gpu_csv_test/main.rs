@@ -18,34 +18,44 @@ struct DataIn {
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 struct DataOut {
-    _f1: f32,
+    _i_start: u32,
+    _interval: u32,
+    _mean: f32,
+}
+impl DataOut {
+    pub fn mean(&self) -> f32 { self._mean }
 }
 
 fn main() -> Result<(), String>{
     let mut rng = thread_rng();
     let data_in: Vec<DataIn> = (0..1_000_000).map(|_| DataIn {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
-    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 75];
+    // let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 75];
+    let data_out_prealloc: Vec<DataOut> = (0..500).map(|i| DataOut {
+        _i_start: i,
+        _interval: i,
+        _mean: f32::NAN,
+    }).collect();
 
     let mut cs_model = pollster::block_on(ComputeModel::new());
     cs_model.initialize_buffers(&data_in, &data_out_prealloc);
     cs_model.initialize_pipeline()?;
 
     let result = pollster::block_on(run(&cs_model)).unwrap();
-    let r: Vec<f32> = result.into_iter()
-        .filter(|&x| !x.is_nan())
+    let r: Vec<DataOut> = result.into_iter()
+        .filter(|&x| !x.mean().is_nan())
         .collect();
     let l = r.len();
     for i in 1..l {
-        assert_eq!(r[i], (r[i-1] + 1.0), "{i}");
+        assert_eq!(r[i].mean(), (r[i-1].mean() + 1.0), "{i}");
     }
     println!("{:?}", l);
 
     Ok(())
 }
 
-async fn run(cs_model: &ComputeModel) -> Option<Vec<f32>> {
+async fn run(cs_model: &ComputeModel) -> Option<Vec<DataOut>> {
     // let output_size = output_length as usize * std::mem::size_of::<f32>();
-    let staging_buffer_size = (cs_model.output_buffer_length.unwrap() * std::mem::size_of::<f32>()) as wgpu::BufferAddress;
+    let staging_buffer_size = (cs_model.output_buffer_length.unwrap() * std::mem::size_of::<DataOut>()) as wgpu::BufferAddress;
 
     let staging_buffer = cs_model.device.create_buffer(&wgpu::BufferDescriptor {
         label: None,
@@ -67,7 +77,8 @@ async fn run(cs_model: &ComputeModel) -> Option<Vec<f32>> {
         // cpass.dispatch(cs_model.output_buffer_length.unwrap() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
     }
     // Will copy data from storage buffer on GPU to staging buffer on CPU.
-    encoder.copy_buffer_to_buffer(&cs_model.output_buffer.as_ref().unwrap(), 0, &staging_buffer, 0, staging_buffer_size);
+    encoder.copy_buffer_to_buffer(&cs_model.output_buffer.as_ref().unwrap(), 0,
+                                  &staging_buffer, 0, staging_buffer_size);
 
     let timer = Instant::now();
     // Submits command encoder for processing
