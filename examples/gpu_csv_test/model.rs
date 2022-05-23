@@ -2,6 +2,44 @@ use wgpu;
 use std::{borrow::Cow};
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
+use std::time::Instant;
+
+#[derive(Clone, Copy, Pod, Zeroable, Debug)]
+#[repr(C)]
+pub struct DataIn {
+    _f1: f32,
+    _f2: f32,
+}
+impl DataIn {
+    pub fn new(f1: f32, f2: f32) -> Self {
+        Self { _f1: f1, _f2: f2 }
+    }
+}
+
+#[derive(Clone, Copy, Pod, Zeroable, Debug)]
+#[repr(C)]
+pub struct DataOut {
+    _i_start: u32,
+    _interval: u32,
+    _mean: f32,
+    _std_dev: f32,
+    _sharpe: f32,
+}
+impl DataOut {
+    pub fn new(i_start: u32, interval: u32) -> Self {
+        Self {
+            _i_start: i_start,
+            _interval: interval,
+            _mean: f32::NAN,
+            _std_dev: f32::NAN,
+            _sharpe: f32::NAN,
+        }
+    }
+
+    pub fn mean(&self) -> f32 { self._mean }
+    pub fn std(&self) -> f32 { self._std_dev }
+    pub fn sharpe(&self) -> f32 { self._sharpe }
+}
 
 pub struct ComputeModel {
     pub device: wgpu::Device,
@@ -100,7 +138,6 @@ impl ComputeModel {
             label: Some("Storage Buffer"),
             contents: bytemuck::cast_slice(data_in),
             usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
         }));
 
@@ -147,4 +184,56 @@ impl ComputeModel {
 
         Ok(())
     }
+    pub async fn run(&self) -> Option<Vec<DataOut>> {
+        // let output_size = output_length as usize * std::mem::size_of::<f32>();
+        let staging_buffer_size = (self.output_buffer_length.unwrap() * std::mem::size_of::<DataOut>()) as wgpu::BufferAddress;
+
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: staging_buffer_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder =
+            self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            cpass.set_pipeline(&self.compute_pipeline.as_ref().unwrap());
+            cpass.set_bind_group(0, &self.bind_group.as_ref().unwrap(), &[]);
+            cpass.insert_debug_marker("compute");
+
+            let y = self.output_buffer_length.unwrap() as f32 / 65_535.0;
+            cpass.dispatch(65_535, y.ceil() as u32, 1); // Number of cells to run, the (x,y,z) size of item being processed
+            // cpass.dispatch(self.output_buffer_length.unwrap() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+        }
+        // Will copy data from storage buffer on GPU to staging buffer on CPU.
+        encoder.copy_buffer_to_buffer(&self.output_buffer.as_ref().unwrap(), 0,
+                                      &staging_buffer, 0, staging_buffer_size);
+
+        let timer = Instant::now();
+        // Submits command encoder for processing
+        self.queue.submit(Some(encoder.finish()));
+
+        let buffer_slice = staging_buffer.slice(..);
+        let buffer_future = buffer_slice.map_async(wgpu::MapMode::Read);
+
+        // Poll the device in a blocking manner so that our future resolves.
+        // In an actual application, `device.poll(...)` should
+        // be called in an event loop or on another thread.
+        self.device.poll(wgpu::Maintain::Wait);
+
+        if let Ok(()) = buffer_future.await {
+            let data = buffer_slice.get_mapped_range();
+            let result = bytemuck::cast_slice(&data).to_vec();
+
+            drop(data);
+            staging_buffer.unmap(); // Unmaps buffer from memory
+            println!("{:2}", timer.elapsed().as_secs_f32());
+            Some(result)
+        } else {
+            panic!("failed to run compute on gpu!")
+        }
+    }
+
 }
