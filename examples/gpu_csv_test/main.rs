@@ -23,14 +23,22 @@ struct DataOut {
 
 fn main() -> Result<(), String>{
     let mut rng = thread_rng();
-    let data_in: Vec<DataIn> = (0..1_000).map(|_| DataIn {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
-    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 5];
+    let data_in: Vec<DataIn> = (0..1_000_000).map(|_| DataIn {_f1: rng.gen::<f32>()*100.0, _f2: rng.gen::<f32>()*100.0}).collect();
+    let data_out_prealloc: Vec<DataOut> = vec![DataOut{ _f1: f32::NAN }; 173_078];
 
     let mut cs_model = pollster::block_on(ComputeModel::new());
     cs_model.initialize_buffers(&data_in, &data_out_prealloc);
     cs_model.initialize_pipeline()?;
 
-    pollster::block_on(run(&cs_model));
+    let result = pollster::block_on(run(&cs_model)).unwrap();
+    let r: Vec<f32> = result.into_iter()
+        .filter(|&x| !x.is_nan())
+        .collect();
+    let l = r.len();
+    for i in 1..l {
+        assert_eq!(r[i], (r[i-1] + 1.0), "{i}");
+    }
+    println!("{:?}", l);
 
     Ok(())
 }
@@ -53,7 +61,10 @@ async fn run(cs_model: &ComputeModel) -> Option<Vec<f32>> {
         cpass.set_pipeline(&cs_model.compute_pipeline.as_ref().unwrap());
         cpass.set_bind_group(0, &cs_model.bind_group.as_ref().unwrap(), &[]);
         cpass.insert_debug_marker("compute");
-        cpass.dispatch(cs_model.output_buffer_length.unwrap() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+
+        let y = cs_model.output_buffer_length.unwrap() as f32 / 65_535.0;
+        cpass.dispatch(65_535, y.ceil() as u32, 1); // Number of cells to run, the (x,y,z) size of item being processed
+        // cpass.dispatch(cs_model.output_buffer_length.unwrap() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
     }
     // Will copy data from storage buffer on GPU to staging buffer on CPU.
     encoder.copy_buffer_to_buffer(&cs_model.output_buffer.as_ref().unwrap(), 0, &staging_buffer, 0, staging_buffer_size);
@@ -77,7 +88,6 @@ async fn run(cs_model: &ComputeModel) -> Option<Vec<f32>> {
         drop(data);
         staging_buffer.unmap(); // Unmaps buffer from memory
         println!("{:2}", timer.elapsed().as_secs_f32());
-        println!("{:?}", result);
         Some(result)
     } else {
         panic!("failed to run compute on gpu!")

@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use log::{error, info};
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::error::Error;

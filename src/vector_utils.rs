@@ -5,7 +5,6 @@ use std::iter::Sum;
 use std::ops::{Add, Sub, Div, Mul, AddAssign};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use itertools::Itertools;
-use log::warn;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub fn vec_unique<T: Eq+Hash>(r: &Vec<T>) -> FxHashSet<&T> {

@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use log::{error, info};
 use crate::BUS_DAY_CAL;
 pub use crate::vector_utils::*;
 use rustc_hash::FxHashMap;

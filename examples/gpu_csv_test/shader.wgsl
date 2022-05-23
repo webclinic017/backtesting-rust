@@ -22,21 +22,24 @@ var<storage, read_write> v_in: DataInArray;
 [[group(0), binding(1)]]
 var<storage, read_write> v_out: DataOutArray;
 
-[[stage(compute), workgroup_size(1)]]
-fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
+fn sum_datain_slice(i_start: u32, i_end: u32) -> f32 {
+    // Sums thru [i_start, i_end)
     var s: f32 = 0.0;
-    let N = 4u;
-
-    var i: u32 = 0u;
+    var i: u32 = i_start;
     loop {
-        if (i >= N) {
+        if (i >= i_end) {
             break;
         }
-
-        s = (s + v_in.data[i].f1) * f32(global_id.x);
+        s = s + v_in.data[i].f1;
         i = i + 1u;
     }
+    return s;
+}
 
-    v_out.data[global_id.x].f1 = s;
-
+[[stage(compute), workgroup_size(2)]]
+fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
+    let global_x_max: u32 = 50000u;
+    // v_out.data[global_id.x].f1 = sum_datain_slice(0u, 4u);
+    let i = global_id.x + ((global_id.y - 1u) * global_x_max);
+    v_out.data[i].f1 = f32(i);
 }

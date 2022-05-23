@@ -1,9 +1,7 @@
 use wgpu;
-use std::{borrow::Cow, str::FromStr};
-use std::borrow::Borrow;
-use bytemuck::{Pod, Zeroable, cast_slice};
+use std::{borrow::Cow};
+use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
-use std::time::Instant;
 
 pub struct ComputeModel {
     pub device: wgpu::Device,
