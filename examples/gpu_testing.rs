@@ -3,6 +3,7 @@ use std::{borrow::Cow, str::FromStr};
 use wgpu::util::DeviceExt;
 use bytemuck;
 use pollster;
+use std::time::Instant;
 use rand::prelude::*;
 
 // Indicates a u32 overflow in an intermediate Collatz value
@@ -13,8 +14,9 @@ async fn run() {
 
     let mut rng = thread_rng();
     let numbers: Vec<f32> = (0..1_000_000).map(|_| rng.gen::<f32>()*100.0).collect();
+    let output_length = 5;
 
-    let steps = execute_gpu(&numbers).await.unwrap();
+    let steps = execute_gpu(&numbers, output_length).await.unwrap();
 
     // println!("Input: {:?}", numbers);
     println!("Output: {:?}", steps);
@@ -28,7 +30,7 @@ async fn run() {
     //
 }
 
-async fn execute_gpu(numbers: &[f32]) -> Option<Vec<f32>> {
+async fn execute_gpu(numbers: &[f32], output_length: u8) -> Option<Vec<f32>> {
     // Instantiates instance of WebGPU
     let instance = wgpu::Instance::new(wgpu::Backends::all());
 
@@ -57,13 +59,14 @@ async fn execute_gpu(numbers: &[f32]) -> Option<Vec<f32>> {
         return None;
     }
 
-    execute_gpu_inner(&device, &queue, numbers).await
+    execute_gpu_inner(&device, &queue, numbers, output_length).await
 }
 
 async fn execute_gpu_inner(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     numbers: &[f32],
+    output_length: u8,
 ) -> Option<Vec<f32>> {
     // Loads the shader from WGSL
     let cs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -71,7 +74,7 @@ async fn execute_gpu_inner(
         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
     });
 
-    let ouput_buffer_prealloc: Vec<f32> = vec![f32::NAN; 100];
+    let ouput_buffer_prealloc: Vec<f32> = vec![f32::NAN; output_length as usize];
     let output_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Output Buffer"),
         contents: bytemuck::cast_slice(ouput_buffer_prealloc.as_slice()),
@@ -85,7 +88,7 @@ async fn execute_gpu_inner(
     // let slice_size = numbers.len() * std::mem::size_of::<f32>();
     // let size = slice_size as wgpu::BufferAddress;
 
-    let output_size = ouput_buffer_prealloc.len() * std::mem::size_of::<f32>();
+    let output_size = output_length as usize * std::mem::size_of::<f32>();
     let size = output_size as wgpu::BufferAddress;
 
     // Instantiates buffer without data.
@@ -187,7 +190,7 @@ async fn execute_gpu_inner(
         cpass.set_pipeline(&compute_pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
         cpass.insert_debug_marker("compute");
-        cpass.dispatch(ouput_buffer_prealloc.len() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+        cpass.dispatch(output_length as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
         // cpass.dispatch(numbers.len() as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
     }
     // Sets adds copy operation to command encoder.
@@ -195,6 +198,7 @@ async fn execute_gpu_inner(
     encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, size);
     // encoder.copy_buffer_to_buffer(&storage_buffer, 0, &staging_buffer, 0, size);
 
+    let timer = Instant::now();
     // Submits command encoder for processing
     queue.submit(Some(encoder.finish()));
 
@@ -224,6 +228,7 @@ async fn execute_gpu_inner(
         //   myPointer = NULL;
         // It effectively frees the memory
 
+        println!("{:2}", timer.elapsed().as_secs_f32());
         // Returns data from buffer
         Some(result)
     } else {
